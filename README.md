@@ -1,6 +1,6 @@
 # ctp-core
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20921269.svg)](https://doi.org/10.5281/zenodo.20921269)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20921268.svg)](https://doi.org/10.5281/zenodo.20921268)
 
 **Open, reproducible CT Perfusion analysis core — IORN-001**
 
@@ -139,7 +139,8 @@ If you use this software, please cite it via [`CITATION.cff`](CITATION.cff).
 - Author: Shuji Yamamoto — Institute of One
 - ORCID: [0000-0001-9211-1071](https://orcid.org/0000-0001-9211-1071)
 - Reference: IORN-001
-- DOI (v0.1.0): [10.5281/zenodo.20921269](https://doi.org/10.5281/zenodo.20921269)
+- DOI (all versions / concept): [10.5281/zenodo.20921268](https://doi.org/10.5281/zenodo.20921268)
+- DOI (this release, v0.1.0): [10.5281/zenodo.20921269](https://doi.org/10.5281/zenodo.20921269)
 
 ## License
 

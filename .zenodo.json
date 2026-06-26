@@ -1,0 +1,21 @@
+{
+  "title": "ctp-core: Open, reproducible CT Perfusion analysis core (IORN-001)",
+  "upload_type": "software",
+  "license": "MIT",
+  "creators": [
+    {
+      "name": "Yamamoto, Shuji",
+      "orcid": "0000-0001-9211-1071",
+      "affiliation": "Institute of One"
+    }
+  ],
+  "keywords": [
+    "CT perfusion",
+    "gamma-variate",
+    "reproducibility",
+    "ASIST-Japan",
+    "stroke imaging",
+    "IORN-001"
+  ],
+  "description": "ctp-core is the open, reproducible scientific core of a CT Perfusion (CTP) analysis pipeline. It provides gamma-variate fitting, baseline correction, peak detection, derived perfusion parameters, a reproducible synthetic data generator, ASIST-Japan standard a-LUT visualization, validation scripts and tests. It contains no GUI, no DICOM I/O, and no confidential, client, or patient data. This is the reproducible core referenced by Institute of One Research Note IORN-001."
+}
