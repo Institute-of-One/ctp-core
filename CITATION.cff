@@ -1,0 +1,43 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "ctp-core: Open, reproducible CT Perfusion analysis core (IORN-001)"
+abstract: >-
+  ctp-core is the open, reproducible scientific core of a CT Perfusion
+  analysis pipeline. It provides gamma-variate fitting, baseline correction,
+  peak detection, derived perfusion parameters, a reproducible synthetic data
+  generator, ASIST-Japan standard a-LUT visualization, validation scripts and
+  tests. It contains no GUI, no DICOM I/O, and no confidential, client, or
+  patient data.
+type: software
+version: "0.1.0"
+date-released: "2026-06-25"
+license: MIT
+authors:
+  - family-names: Yamamoto
+    given-names: Shuji
+    orcid: "https://orcid.org/0000-0001-9211-1071"
+    affiliation: "Institute of One"
+keywords:
+  - CT perfusion
+  - gamma-variate
+  - reproducibility
+  - ASIST-Japan
+  - stroke imaging
+  - IORN-001
+identifiers:
+  - type: other
+    value: "IORN-001"
+    description: "Institute of One Reproducible Note 001 (publication reference)"
+  - type: doi
+    value: "10.5281/zenodo.PLACEHOLDER"
+    description: "Zenodo DOI placeholder — to be assigned on release"
+repository-code: "https://github.com/instituteofone/ctp-core"
+references:
+  - type: report
+    title: "IORN-001: Transparent and reproducible CT Perfusion pipeline"
+    authors:
+      - family-names: Yamamoto
+        given-names: Shuji
+        orcid: "https://orcid.org/0000-0001-9211-1071"
+    institution:
+      name: "Institute of One"
