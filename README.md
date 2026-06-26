@@ -1,5 +1,7 @@
 # ctp-core
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20921269.svg)](https://doi.org/10.5281/zenodo.20921269)
+
 **Open, reproducible CT Perfusion analysis core — IORN-001**
 
 `ctp-core` is the open, reproducible scientific core of a CT Perfusion (CTP)
@@ -133,11 +135,11 @@ tests/
 ## Citation
 
 If you use this software, please cite it via [`CITATION.cff`](CITATION.cff).
-A Zenodo DOI will be assigned on public release.
 
 - Author: Shuji Yamamoto — Institute of One
 - ORCID: [0000-0001-9211-1071](https://orcid.org/0000-0001-9211-1071)
 - Reference: IORN-001
+- DOI (v0.1.0): [10.5281/zenodo.20921269](https://doi.org/10.5281/zenodo.20921269)
 
 ## License
 

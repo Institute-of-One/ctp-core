@@ -29,8 +29,8 @@ identifiers:
     value: "IORN-001"
     description: "Institute of One Reproducible Note 001 (publication reference)"
   - type: doi
-    value: "10.5281/zenodo.PLACEHOLDER"
-    description: "Zenodo DOI placeholder — to be assigned on release"
+    value: "10.5281/zenodo.20921269"
+    description: "Zenodo DOI for v0.1.0 release archive"
 repository-code: "https://github.com/Institute-of-One/ctp-core"
 references:
   - type: report
