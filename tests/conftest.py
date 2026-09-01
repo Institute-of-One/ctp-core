@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""pytest 設定: リポジトリ root を import パスへ追加し ``import ctp_core`` を解決する。"""
+"""pytest configuration: add the repository root to the import path so that ``import ctp_core`` resolves."""
 
 import os
 import sys

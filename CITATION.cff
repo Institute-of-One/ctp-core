@@ -9,14 +9,14 @@ abstract: >-
   tests. It contains no GUI, no DICOM I/O, and no confidential, client, or
   patient data.
 type: software
-version: "0.1.0"
-date-released: "2026-06-25"
+version: "0.1.1"
+date-released: "2026-09-01"
 license: MIT
 authors:
   - family-names: Yamamoto
     given-names: Shuji
     orcid: "https://orcid.org/0000-0001-9211-1071"
-    affiliation: "Institute of One"
+    affiliation: "Institute of One, LISIT Co., Ltd., Tokyo 150-0044, Japan"
 keywords:
   - CT perfusion
   - gamma-variate
@@ -29,8 +29,8 @@ identifiers:
     value: "IORN-001"
     description: "Institute of One Reproducible Note 001 (publication reference)"
   - type: doi
-    value: "10.5281/zenodo.20921269"
-    description: "Zenodo DOI for v0.1.0 release archive"
+    value: "10.5281/zenodo.20921268"
+    description: "Zenodo concept DOI (all versions)"
 repository-code: "https://github.com/Institute-of-One/ctp-core"
 references:
   - type: report

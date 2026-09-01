@@ -1,45 +1,45 @@
 # -*- coding: utf-8 -*-
 """
-ASIST-Japan 標準灌流カラーマッピング モジュール (a-LUT)
+ASIST-Japan standard perfusion colour mapping (a-LUT)
 =========================================================
 
 ASIST-Japan (Acute Stroke Imaging Standardization Group Japan,
-急性期脳卒中画像診断標準化委員会) が公開している標準ルックアップテーブル
-(a-LUT) を用いて、CTP / MRP の灌流マップを標準化された配色で可視化する。
+Renders CT- and MR-perfusion maps in a standardized colour scheme, using the
+standard lookup table (a-LUT) published by ASIST-Japan.
 
-背景:
+Background:
 -----
-灌流画像のカラースケール (LUT) は装置・施設ごとに異なり、同一データでも
-見え方が大きく異なる。ASIST-Japan の「CT/MR 灌流画像実践ガイドライン2006」
-では表示方法の標準化が望まれると明記され、標準 LUT (a-LUT) が
-256 階調の RGB テーブルとして公開されている。
+The colour scale of a perfusion image differs between scanners and between
+institutions, so the same data can look very different. The ASIST-Japan CT/MR
+Perfusion Imaging Practical Guideline 2006 states that standardizing the display
+is desirable, and publishes a standard LUT as a 256-level RGB table.
 
-    出典: ASIST-Japan  https://asist.umin.jp/  (data/alut.csv)
-          CT/MR 灌流画像実践ガイドライン2006
+    Source: ASIST-Japan  https://asist.umin.jp/  (data/alut.csv)
+            CT/MR Perfusion Imaging Practical Guideline 2006
           https://asist.umin.jp/data/guidelineCtpMrp2006.pdf
 
-a-LUT の配色 (低値→高値):
-    黒 → 紫 → 青 → シアン → 緑 → 黄 → 橙 → 赤
-    (index 0 = 黒(0,0,0)、index 255 = 赤(255,0,0))
-慣例として高値=赤、低値=青/黒で符号化される。
+The a-LUT colour order, low to high:
+    black -> purple -> blue -> cyan -> green -> yellow -> orange -> red
+    (index 0 = black (0,0,0), index 255 = red (255,0,0))
+By convention high values are red and low values blue or black.
 
-設計方針:
+Design:
 --------
-- 量的体素値 (voxel value) は一切変更しない。LUT は **可視化のみ** に作用する。
-  apply_a_lut() は常に新しい RGB 配列を返し、入力スカラー配列を破壊しない。
-- 固定スカラー値に対し RGB 出力は決定論的 (deterministic) である。
-- grayscale / ASIST 標準 / 任意の研究用 LUT を切り替え可能。
+- Quantitative voxel values are never altered. The LUT affects **display only**.
+  apply_a_lut() always returns a new RGB array and never modifies its input.
+- For a fixed scalar value the RGB output is deterministic.
+- Grayscale, the ASIST standard, and any research LUT can be selected.
 
-主要 API:
+Main API:
 --------
-    load_a_lut(name='asist')        -> (256, 3) uint8 の LUT を取得
-    apply_a_lut(data, ...)          -> スカラーマップを (H, W, 3) uint8 RGB へ
-    export_png_with_a_lut(data, ..) -> RGB PNG を書き出し
-    export_colorbar(...)            -> ASIST 慣例のカラーバー PNG を書き出し
+    load_a_lut(name='asist')        -> obtain the LUT as (256, 3) uint8
+    apply_a_lut(data, ...)          -> scalar map to (H, W, 3) uint8 RGB
+    export_png_with_a_lut(data, ..) -> write an RGB PNG
+    export_colorbar(...)            -> write a colour bar PNG in the ASIST style
 
-使い方:
+Usage:
     from a_lut import apply_a_lut, export_png_with_a_lut, MAP_PRESETS
-    rgb = apply_a_lut(cbf_map, map_type='cbf')          # ASIST 標準
+    rgb = apply_a_lut(cbf_map, map_type='cbf')          # the ASIST standard
     export_png_with_a_lut(cbf_map, 'cbf.png', map_type='cbf')
 """
 
@@ -50,21 +50,22 @@ import csv
 import numpy as np
 
 # ---------------------------------------------------------------------------
-# 定数・設定
+# Constants and settings
 # ---------------------------------------------------------------------------
 
-#: a-LUT の階調数 (ASIST 標準は 256)
+#: Number of levels in the a-LUT; the ASIST standard is 256.
 LUT_SIZE = 256
 
 def _resolve_default_alut_csv() -> str:
-    """同梱された標準 a-LUT CSV の絶対パスを解決する。
+    """Resolve the absolute path of the packaged standard a-LUT CSV.
 
-    パッケージ化 (pip install / wheel) されても確実に読めるよう、まず
-    importlib.resources でパッケージ同梱リソース (ctp_core/assets/alut.csv)
-    を探し、見つからなければ本ファイル基準の相対パスにフォールバックする。
-    いずれも量的値には作用せず、配色テーブルの所在を返すのみ。
+    So that the file is still readable once the project is packaged (pip install or a
+    wheel), this looks first for the resource shipped inside the package
+    (ctp_core/assets/alut.csv) through importlib.resources, and falls back to a path
+    relative to this file. Neither touches quantitative values; this only locates the
+    colour table.
     """
-    # 1) パッケージ同梱リソース (インストール済みでも堅牢)
+    # 1) The resource shipped inside the package, robust once installed.
     try:
         from importlib.resources import files
         res = files("ctp_core").joinpath("assets", "alut.csv")
@@ -72,25 +73,25 @@ def _resolve_default_alut_csv() -> str:
             return str(res)
     except Exception:
         pass
-    # 2) フォールバック: 本モジュールと同階層の assets/alut.csv (ソース配置)
+    # 2) Fallback: assets/alut.csv beside this module, as laid out in the source tree.
     return os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "assets", "alut.csv"
     )
 
 
-#: 既定の a-LUT CSV 配置場所 (パッケージ同梱 ctp_core/assets/alut.csv)
+#: Default location of the a-LUT CSV, shipped as ctp_core/assets/alut.csv.
 _DEFAULT_ALUT_CSV = _resolve_default_alut_csv()
 
-#: マスク外/無効体素 (NaN, mask=False) に割り当てる背景色 RGB
+#: RGB background assigned to voxels outside the mask or invalid (NaN, mask=False).
 BACKGROUND_RGB = (0, 0, 0)
 
-#: 利用可能な LUT モード
+#: The available LUT modes.
 LUT_MODES = ("grayscale", "asist", "custom")
 
 
-#: 各灌流パラメータの標準表示設定。
-#: vmin/vmax は ASIST ガイドライン及び急性期脳卒中で慣用される表示レンジに準拠。
-#: これらは「表示窓」であり、量的値そのものには影響しない。
+#: Standard display settings for each perfusion parameter.
+#: vmin and vmax follow the ASIST guideline and the display ranges customary in
+#: acute stroke. These are a display window and do not affect the values themselves.
 MAP_PRESETS = {
     "cbf": {
         "label": "CBF (Cerebral Blood Flow)",
@@ -116,7 +117,7 @@ MAP_PRESETS = {
         "vmin": 0.0,
         "vmax": 25.0,
     },
-    # Tmax は将来対応 (現状パイプラインでも算出済み)。
+    # Tmax is for future use; the current pipeline already computes it.
     "tmax": {
         "label": "Tmax (Time to Max of residue)",
         "unit": "s",
@@ -127,26 +128,26 @@ MAP_PRESETS = {
 
 
 # ---------------------------------------------------------------------------
-# LUT 読み込み
+# Loading the LUT
 # ---------------------------------------------------------------------------
 
-# プロセス内キャッシュ (同一 LUT の再読込を避ける)
+# In-process cache, to avoid re-reading the same LUT.
 _LUT_CACHE: dict = {}
 
 
 def _load_alut_csv(path: str) -> np.ndarray:
-    """ASIST a-LUT CSV (Index,R,G,B; 256 行) を (256, 3) uint8 で読み込む。"""
+    """Read an ASIST a-LUT CSV (Index,R,G,B; 256 rows) as (256, 3) uint8."""
     if not os.path.exists(path):
         raise FileNotFoundError(
-            f"ASIST a-LUT CSV が見つかりません: {path}\n"
-            f"https://asist.umin.jp/data/alut.csv から取得し assets/ に配置してください。"
+            f"ASIST a-LUT CSV not found: {path}\n"
+            f"Download it from https://asist.umin.jp/data/alut.csv and place it in assets/."
         )
 
     rows = []
     with open(path, "r", newline="") as f:
         reader = csv.reader(f)
         header = next(reader, None)
-        # ヘッダ行が数値なら（ヘッダ無し CSV の場合）データとして扱う
+        # If the first row is numeric the CSV has no header, so treat it as data.
         if header is not None and _looks_numeric(header):
             rows.append([int(float(x)) for x in header[1:4]])
         for row in reader:
@@ -157,7 +158,7 @@ def _load_alut_csv(path: str) -> np.ndarray:
     lut = np.asarray(rows, dtype=np.uint8)
     if lut.shape != (LUT_SIZE, 3):
         raise ValueError(
-            f"a-LUT の形状が不正です: {lut.shape} (期待値: ({LUT_SIZE}, 3))"
+            f"The a-LUT has the wrong shape: {lut.shape} (expected ({LUT_SIZE}, 3))"
         )
     return lut
 
@@ -171,26 +172,26 @@ def _looks_numeric(row) -> bool:
 
 
 def _grayscale_lut() -> np.ndarray:
-    """0→255 の線形グレースケール LUT (256, 3)。"""
+    """A linear grayscale LUT from 0 to 255, shape (256, 3)."""
     ramp = np.arange(LUT_SIZE, dtype=np.uint8)
     return np.stack([ramp, ramp, ramp], axis=1)
 
 
 def load_a_lut(name: str = "asist", path: str | None = None) -> np.ndarray:
-    """LUT を (256, 3) uint8 配列として取得する。
+    """Obtain a LUT as a (256, 3) uint8 array.
 
     Args:
-        name: 'asist'  -> ASIST-Japan 標準 a-LUT (assets/alut.csv)
-              'grayscale' -> 線形グレースケール
-              'custom'  -> ``path`` で指定した CSV を読み込む
-        path: name='asist'/'custom' のとき CSV パスを上書き指定。
-              'asist' で None の場合は既定の assets/alut.csv を使用。
+        name: 'asist'  -> the ASIST-Japan standard a-LUT (assets/alut.csv)
+              'grayscale' -> a linear grayscale
+              'custom'  -> read the CSV given by ``path``
+        path: overrides the CSV path when name is 'asist' or 'custom'.
+              For 'asist' with None, the default assets/alut.csv is used.
 
     Returns:
-        (256, 3) uint8 の RGB LUT。
+        The RGB LUT as (256, 3) uint8.
 
     Note:
-        量的値には作用しない。本関数は配色テーブルを返すのみ。
+        Quantitative values are untouched; this only returns a colour table.
     """
     name = name.lower()
     cache_key = (name, path)
@@ -203,11 +204,11 @@ def load_a_lut(name: str = "asist", path: str | None = None) -> np.ndarray:
         lut = _load_alut_csv(path or _DEFAULT_ALUT_CSV)
     elif name == "custom":
         if not path:
-            raise ValueError("name='custom' には path (CSV) の指定が必要です。")
+            raise ValueError("name='custom' requires a path to a CSV.")
         lut = _load_alut_csv(path)
     else:
         raise ValueError(
-            f"未知の LUT 名: {name!r} (有効値: {LUT_MODES})"
+            f"Unknown LUT name: {name!r} (valid values: {LUT_MODES})"
         )
 
     _LUT_CACHE[cache_key] = lut
@@ -215,16 +216,16 @@ def load_a_lut(name: str = "asist", path: str | None = None) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# LUT 適用 (スカラー -> RGB)
+# Applying the LUT (scalar -> RGB)
 # ---------------------------------------------------------------------------
 
 def scalar_to_index(
     data: np.ndarray, vmin: float, vmax: float
 ) -> np.ndarray:
-    """スカラー値を [vmin, vmax] で正規化し 0..255 の LUT インデックスへ。
+    """Normalize a scalar over [vmin, vmax] into a LUT index in 0..255.
 
-    決定論的: 同一 (value, vmin, vmax) は常に同一インデックスを返す。
-    vmax<=vmin の異常入力でもゼロ除算せず全 0 を返す。
+    Deterministic: the same (value, vmin, vmax) always gives the same index.
+    A degenerate vmax <= vmin returns all zeros rather than dividing by zero.
     """
     data = np.asarray(data, dtype=np.float64)
     span = float(vmax) - float(vmin)
@@ -246,60 +247,61 @@ def apply_a_lut(
     mask: np.ndarray | None = None,
     custom_lut_path: str | None = None,
 ) -> np.ndarray:
-    """スカラーマップに LUT を適用し RGB 画像 (H, W, 3) uint8 を返す。
+    """Apply the LUT to a scalar map and return an RGB image, (H, W, 3) uint8.
 
-    **量的体素値は変更されない。** 入力 ``data`` は読み取り専用に扱われ、
-    新規 RGB 配列が生成される。
+    **Quantitative voxel values are not changed.** The input ``data`` is treated as
+    read-only and a new RGB array is created.
 
     Args:
-        data: 2 次元のスカラーマップ (例: CBF マップ)。
-        map_type: 'cbf'/'cbv'/'mtt'/'ttp'/'tmax'。vmin/vmax 未指定時に
-                  MAP_PRESETS の標準レンジを使用する。
-        lut: LUT モード名 ('asist'/'grayscale'/'custom') または
-             (256,3) の LUT 配列を直接指定。
-        vmin, vmax: 表示窓の下限/上限。None なら map_type のプリセット、
-                    それも無ければ data の有限値の min/max。
-        mask: True の体素のみ着色。False/NaN は BACKGROUND_RGB。
-        custom_lut_path: lut='custom' のときの CSV パス。
+        data: a two-dimensional scalar map, for example a CBF map.
+        map_type: 'cbf'/'cbv'/'mtt'/'ttp'/'tmax'. When vmin and vmax are not given,
+                  the standard range from MAP_PRESETS is used.
+        lut: the name of a LUT mode ('asist'/'grayscale'/'custom'), or a
+             (256, 3) LUT array given directly.
+        vmin, vmax: the lower and upper bound of the display window. None takes the
+                    preset for map_type, or failing that the min and max of the
+                    finite values in data.
+        mask: colour only the voxels that are True. False and NaN get BACKGROUND_RGB.
+        custom_lut_path: the CSV path used when lut='custom'.
 
     Returns:
-        (H, W, 3) uint8 の RGB 画像。
+        The RGB image, (H, W, 3) uint8.
     """
     data = np.asarray(data, dtype=np.float64)
     if data.ndim != 2:
-        raise ValueError(f"data は 2 次元である必要があります: shape={data.shape}")
+        raise ValueError(f"data must be two-dimensional: shape={data.shape}")
 
-    # LUT の解決
+    # Resolve the LUT
     if isinstance(lut, np.ndarray):
         table = lut
         if table.shape != (LUT_SIZE, 3):
-            raise ValueError(f"LUT 配列形状が不正: {table.shape}")
+            raise ValueError(f"Invalid LUT array shape: {table.shape}")
         table = table.astype(np.uint8)
     else:
         table = load_a_lut(lut, path=custom_lut_path)
 
-    # 表示レンジの解決
+    # Resolve the display range
     vmin, vmax = resolve_range(data, map_type, vmin, vmax, mask)
 
-    # 有効体素マスク (NaN/Inf を除外し、mask があれば AND)
+    # Valid-voxel mask: exclude NaN and Inf, and AND with mask when it is given.
     valid = np.isfinite(data)
     if mask is not None:
         valid = valid & np.asarray(mask, dtype=bool)
 
-    # 正規化とインデックス化 (NaN は 0 埋めしてからインデックス化)
+    # Normalize and index; NaN is filled with 0 before indexing.
     safe = np.where(valid, data, vmin)
     idx = scalar_to_index(safe, vmin, vmax)
 
     rgb = table[idx]  # (H, W, 3)
 
-    # 無効体素を背景色に
+    # Give the invalid voxels the background colour
     rgb = rgb.copy()
     rgb[~valid] = np.array(BACKGROUND_RGB, dtype=np.uint8)
     return rgb
 
 
 def resolve_range(data, map_type, vmin, vmax, mask=None):
-    """vmin/vmax を確定する。優先順位: 明示指定 > プリセット > データ実測。"""
+    """Settle vmin and vmax. Priority: explicit values, then the preset, then the data."""
     preset = MAP_PRESETS.get(map_type.lower()) if map_type else None
     if vmin is None:
         vmin = preset["vmin"] if preset else None
@@ -324,13 +326,13 @@ def resolve_range(data, map_type, vmin, vmax, mask=None):
 
 
 # ---------------------------------------------------------------------------
-# matplotlib Colormap への変換 (既存可視化コードとの連携用)
+# Conversion to a matplotlib Colormap, for use with existing display code
 # ---------------------------------------------------------------------------
 
 def to_mpl_colormap(lut: str | np.ndarray = "asist", name: str = "asist"):
-    """LUT を matplotlib の ListedColormap に変換する。
+    """Convert a LUT into a matplotlib ListedColormap.
 
-    既存の imshow(cmap=...) ベースのコードへ最小変更で組み込めるようにする。
+    This lets existing imshow(cmap=...) code adopt the LUT with a minimal change.
     """
     from matplotlib.colors import ListedColormap
 
@@ -339,11 +341,11 @@ def to_mpl_colormap(lut: str | np.ndarray = "asist", name: str = "asist"):
 
 
 # ---------------------------------------------------------------------------
-# PNG 書き出し
+# Writing PNGs
 # ---------------------------------------------------------------------------
 
 def _save_rgb_png(rgb: np.ndarray, path: str) -> None:
-    """(H, W, 3) uint8 RGB を PNG として保存 (PIL があれば優先、無ければ matplotlib)。"""
+    """Save (H, W, 3) uint8 RGB as a PNG, preferring PIL and falling back to matplotlib."""
     os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
     try:
         from PIL import Image
@@ -363,12 +365,13 @@ def export_png_with_a_lut(
     mask: np.ndarray | None = None,
     custom_lut_path: str | None = None,
 ) -> np.ndarray:
-    """スカラーマップに LUT を適用し、生 RGB PNG (軸・余白なし) を書き出す。
+    """Apply the LUT to a scalar map and write a bare RGB PNG, with no axes or margins.
 
-    量的値は保存しない (可視化専用)。量的値は別途 .npy 等で保持すること。
+    Quantitative values are not saved; this is for display only. Keep them
+    separately, for example as .npy.
 
     Returns:
-        書き出した (H, W, 3) uint8 RGB 配列。
+        The (H, W, 3) uint8 RGB array that was written.
     """
     rgb = apply_a_lut(
         data, map_type=map_type, lut=lut, vmin=vmin, vmax=vmax,
@@ -379,7 +382,7 @@ def export_png_with_a_lut(
 
 
 # ---------------------------------------------------------------------------
-# カラーバー (ASIST 慣例: 横方向グラデーション + 目盛)
+# Colour bar (the ASIST style: a horizontal gradient with ticks)
 # ---------------------------------------------------------------------------
 
 def make_colorbar_strip(
@@ -388,9 +391,9 @@ def make_colorbar_strip(
     length: int = 256,
     thickness: int = 32,
 ) -> np.ndarray:
-    """LUT の連続カラーバー画像 (H, W, 3) uint8 を生成する。
+    """Build a continuous colour-bar image from the LUT, (H, W, 3) uint8.
 
-    ASIST 公開の alut-horizontal.gif に倣い、既定は横方向 (低値=左→高値=右)。
+    Following the alut-horizontal.gif published by ASIST, the default is horizontal,
     """
     table = lut if isinstance(lut, np.ndarray) else load_a_lut(lut)
     idx = scalar_to_index(np.linspace(0, 1, length), 0.0, 1.0)
@@ -399,11 +402,11 @@ def make_colorbar_strip(
     if orientation == "horizontal":
         strip = np.broadcast_to(line[np.newaxis, :, :], (thickness, length, 3))
     elif orientation == "vertical":
-        # 縦方向は下=低値, 上=高値
+        # Vertical runs low at the bottom to high at the top.
         line = line[::-1]
         strip = np.broadcast_to(line[:, np.newaxis, :], (length, thickness, 3))
     else:
-        raise ValueError("orientation は 'horizontal' か 'vertical'")
+        raise ValueError("orientation must be 'horizontal' or 'vertical'")
     return np.ascontiguousarray(strip, dtype=np.uint8)
 
 
@@ -417,7 +420,7 @@ def export_colorbar(
     label: str | None = None,
     unit: str | None = None,
 ) -> None:
-    """目盛・ラベル付きのカラーバー図を PNG 保存する (ASIST 慣例準拠)。"""
+    """Save a colour-bar figure with ticks and labels as a PNG, in the ASIST style."""
     import matplotlib
     matplotlib.use("Agg", force=False)
     import matplotlib.pyplot as plt

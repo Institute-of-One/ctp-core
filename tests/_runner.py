@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""pytest 不在環境向けの簡易テストランナー。
+"""A minimal test runner, for environments without pytest.
 
-使い方 (各テストファイル末尾):
+Usage, at the end of each test file:
     if __name__ == "__main__":
         import _runner; _runner.run(globals())
 """

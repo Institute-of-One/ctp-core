@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""gamma-variate フィット・ピーク検出・派生指標の検証 (合成データのみ)。"""
+"""Gamma-variate fitting, peak detection and derived indices, synthetic data only."""
 
 import _pathfix  # noqa: F401
 import numpy as np
@@ -11,20 +11,20 @@ from ctp_core.synthetic import generate_synthetic_tac
 
 
 def test_gamma_variate_curve_generation():
-    """gamma_variate は t0 以前ゼロ・単峰・有限。"""
+    """gamma_variate is zero before t0, unimodal and finite."""
     t = np.linspace(0, 40, 41)
     y = gamma_variate(t, K=10.0, t0=8.0, alpha=3.0, beta=2.0)
     assert np.all(np.isfinite(y))
     assert np.allclose(y[t <= 8.0], 0.0)
     assert y.max() > 0
-    # 単峰: ピーク前後で単調
+    # Unimodal: monotonic either side of the peak
     pk = int(np.argmax(y))
     assert np.all(np.diff(y[:pk + 1]) >= -1e-9)
     assert np.all(np.diff(y[pk:]) <= 1e-9)
 
 
 def test_fit_returns_finite_parameters():
-    """ノイズ無し曲線へのフィットは有限パラメータを返す。"""
+    """Fitting a noiseless curve returns finite parameters."""
     tac = generate_synthetic_tac(noise_std=0.0, seed=0)
     r = fit_gamma_variate(tac.time, tac.clean)
     assert r.success
@@ -33,7 +33,7 @@ def test_fit_returns_finite_parameters():
 
 
 def test_fit_recovers_ground_truth_noiseless():
-    """ノイズ無しでは真値を高精度に回復する。"""
+    """Without noise the true values are recovered accurately."""
     tac = generate_synthetic_tac(amplitude=60, t0=8, alpha=3, beta=2,
                                  noise_std=0.0, seed=0)
     r = fit_gamma_variate(tac.time, tac.clean)
@@ -47,12 +47,12 @@ def test_fit_robust_to_moderate_noise():
     r = fit_gamma_variate(tac.time, tac.noisy)
     assert r.success
     assert np.isfinite(r.peak_time) and np.isfinite(r.peak_value)
-    # 中程度ノイズでも peak_time は ±2s 程度で妥当
+    # Even with moderate noise, peak_time should be within about +/- 2 s
     assert abs(r.peak_time - tac.ground_truth["true_peak_time"]) < 2.0
 
 
 def test_peak_detection_plausible_location():
-    """raw ピーク検出が真の peak_time 近傍を返す。"""
+    """Raw peak detection returns a value near the true peak_time."""
     tac = generate_synthetic_tac(amplitude=60, t0=8, alpha=3, beta=2,
                                  snr=30, seed=0)
     raw = compute_raw_indices(tac.time, tac.noisy)
@@ -69,7 +69,7 @@ def test_derived_parameters_finite():
 
 
 def test_fit_failure_returns_result_not_exception():
-    """全ゼロ曲線でも例外を投げず success=False を返す (silent failure 禁止)。"""
+    """An all-zero curve returns success=False instead of raising -- never fail silently."""
     t = np.linspace(0, 40, 41)
     r = fit_gamma_variate(t, np.zeros_like(t))
     assert r.success is False

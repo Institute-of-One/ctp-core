@@ -1,24 +1,25 @@
 # -*- coding: utf-8 -*-
 """
-合成 CTP 時間–濃度曲線ジェネレータ (再現可能)
-=============================================
+Reproducible synthetic CT-perfusion time-attenuation curve generator
+===================================================================
 
-IORN-001 の検証・再現性確認のために、gamma-variate モデルに基づく
-合成 time–attenuation curve (TAC) を **決定論的** に生成する。
+Generates synthetic time-attenuation curves (TACs) from a gamma-variate model
+**deterministically**, for the validation and reproducibility checks of IORN-001.
 
-特徴:
-  - 固定乱数シード (seed) によりノイズまで完全再現可能。
-  - amplitude(ピーク濃度) / t0(bolus arrival) / alpha / beta を指定可能。
-  - 時間サンプリング間隔 (dt) とサンプル数 (n_time_points) を指定可能。
-  - ノイズは SNR もしくは絶対標準偏差 (noise_std) で指定可能。
-  - 任意で再循環 (recirculation) 成分を付加可能。
-  - 出力: 時間軸 / クリーン曲線 / ノイズ付き曲線 / 真値パラメータ。
+Features:
+  - Fully reproducible down to the noise, through a fixed random seed.
+  - Configurable amplitude (peak concentration), t0 (bolus arrival), alpha and beta.
+  - Configurable sampling interval (dt) and number of samples (n_time_points).
+  - Noise given either as an SNR or as an absolute standard deviation (noise_std).
+  - An optional recirculation component.
+  - Returns the time axis, the clean curve, the noisy curve and the true parameters.
 
-設計境界:
-  本モジュールは ctp-core (open/reproducible) に属し、GUI・DICOM・患者/顧客
-  データに一切依存しない。生成データは合成のみで機密情報を含まない。
+Design boundary:
+  This module belongs to ctp-core, the open and reproducible part, and depends on no
+  graphical interface, no DICOM handling and no patient or client data. Everything it
+  produces is synthetic and contains no confidential information.
 
-使い方:
+Usage:
     from ctp_core.synthetic import generate_synthetic_tac
     s = generate_synthetic_tac(amplitude=60, t0=8, alpha=3, beta=2,
                                snr=20, n_time_points=40, dt=1.0, seed=0)
@@ -36,18 +37,18 @@ from .gamma_fit import gamma_variate, gamma_variate_analytic
 
 
 # ---------------------------------------------------------------------------
-# データ構造
+# Data structures
 # ---------------------------------------------------------------------------
 
 @dataclass
 class SyntheticTAC:
-    """合成 TAC の生成結果。
+    """The result of generating a synthetic TAC.
 
     Attributes:
-        time:         時間軸 (s), shape (n,)
-        clean:        ノイズ無しの真の曲線 (enhancement), shape (n,)
-        noisy:        ノイズ付き観測曲線, shape (n,)
-        ground_truth: 真値パラメータと解析的指標 (dict)
+        time:         time axis (s), shape (n,)
+        clean:        the true noiseless enhancement curve, shape (n,)
+        noisy:        the noisy observed curve, shape (n,)
+        ground_truth: true parameters and analytic indices (dict)
     """
     time: np.ndarray
     clean: np.ndarray
@@ -56,14 +57,14 @@ class SyntheticTAC:
 
 
 # ---------------------------------------------------------------------------
-# ヘルパ: amplitude(ピーク高) -> gamma_variate の K 係数
+# Helper: amplitude (peak height) -> the K coefficient of gamma_variate
 # ---------------------------------------------------------------------------
 
 def _amplitude_to_K(amplitude: float, alpha: float, beta: float) -> float:
-    """ピーク濃度 amplitude を gamma_variate の K 係数へ変換する。
+    """Convert a peak concentration into the K coefficient of gamma_variate.
 
-    gamma_variate のピーク値 = K * (alpha*beta)^alpha * exp(-alpha)。
-    これを amplitude に一致させる K を解析的に求める。
+    The peak value of gamma_variate is K * (alpha*beta)^alpha * exp(-alpha); this solves
+    analytically for the K that makes that peak equal to amplitude.
     """
     if alpha <= 0 or beta <= 0:
         return float(amplitude)
@@ -73,7 +74,7 @@ def _amplitude_to_K(amplitude: float, alpha: float, beta: float) -> float:
 
 
 # ---------------------------------------------------------------------------
-# 生成
+# Generation
 # ---------------------------------------------------------------------------
 
 def generate_synthetic_tac(
@@ -92,38 +93,40 @@ def generate_synthetic_tac(
     baseline: float = 0.0,
     seed: Optional[int] = 0,
 ) -> SyntheticTAC:
-    """再現可能な合成 CTP 曲線を生成する。
+    """Generate a reproducible synthetic CT-perfusion curve.
 
     Args:
-        amplitude: 主ボーラスのピーク enhancement 値 (例: HU)。
-        t0:        bolus arrival time (s)。
-        alpha,beta: gamma-variate 形状パラメータ。
-        n_time_points: サンプル数。
-        dt:        時間サンプリング間隔 (s)。
-        snr:       信号対雑音比 (= amplitude / noise_std)。noise_std 指定時は無視。
-        noise_std: ノイズ標準偏差を直接指定 (None なら snr から導出)。
-        recirculation: True で再循環成分を付加。
-        recirc_fraction: 再循環ピークの主ピークに対する比率。
-        recirc_delay:    主 t0 からの再循環遅延 (s)。
-        recirc_beta_scale: 再循環ガンマの beta 倍率 (broader bolus)。
-        baseline:  一定ベースラインオフセット。
-        seed:      乱数シード (None で非決定論)。
+        amplitude: peak enhancement of the main bolus, for example in HU.
+        t0:        bolus arrival time (s).
+        alpha,beta: gamma-variate shape parameters.
+        n_time_points: number of samples.
+        dt:        temporal sampling interval (s).
+        snr:       signal-to-noise ratio (= amplitude / noise_std); ignored when
+                   noise_std is given.
+        noise_std: noise standard deviation given directly (derived from snr if None).
+        recirculation: add a recirculation component when True.
+        recirc_fraction: recirculation peak as a fraction of the main peak.
+        recirc_delay:    recirculation delay from the main t0 (s).
+        recirc_beta_scale: factor applied to beta for the recirculation gamma, giving a
+                   broader bolus.
+        baseline:  constant baseline offset.
+        seed:      random seed; None makes the result non-deterministic.
 
     Returns:
         SyntheticTAC(time, clean, noisy, ground_truth)
     """
     if n_time_points < 4:
-        raise ValueError("n_time_points は 4 以上が必要です。")
+        raise ValueError("n_time_points must be at least 4.")
     if dt <= 0:
-        raise ValueError("dt は正である必要があります。")
+        raise ValueError("dt must be positive.")
 
     time = np.arange(n_time_points, dtype=np.float64) * dt
 
-    # 主ボーラス (amplitude をピーク高として K を逆算)
+    # Main bolus: solve for K so that amplitude is the peak height.
     K_main = _amplitude_to_K(amplitude, alpha, beta)
     clean = gamma_variate(time, K_main, t0, alpha, beta)
 
-    # 再循環成分 (任意): 遅延した、低く幅広いガンマ
+    # Optional recirculation component: a delayed, lower and broader gamma.
     if recirculation:
         amp_r = amplitude * float(recirc_fraction)
         beta_r = beta * float(recirc_beta_scale)
@@ -132,7 +135,7 @@ def generate_synthetic_tac(
 
     clean = clean + float(baseline)
 
-    # ノイズ標準偏差の決定
+    # Decide the noise standard deviation.
     if noise_std is None:
         if snr is not None and snr > 0:
             sigma = float(amplitude) / float(snr)
@@ -141,7 +144,7 @@ def generate_synthetic_tac(
     else:
         sigma = float(noise_std)
 
-    # 決定論的ノイズ (固定シード)
+    # Deterministic noise, from the fixed seed.
     rng = np.random.default_rng(seed)
     if sigma > 0:
         noise = rng.normal(0.0, sigma, size=time.shape)
@@ -149,7 +152,7 @@ def generate_synthetic_tac(
         noise = np.zeros_like(time)
     noisy = clean + noise
 
-    # 真値・解析指標
+    # Ground truth and analytic indices.
     analytic = gamma_variate_analytic(K_main, t0, alpha, beta)
     ground_truth = {
         "amplitude": float(amplitude),
@@ -164,7 +167,7 @@ def generate_synthetic_tac(
         "n_time_points": int(n_time_points),
         "recirculation": bool(recirculation),
         "seed": seed,
-        # gamma-variate の解析的真値 (検証時の基準)
+        # Analytic ground truth of the gamma-variate, the reference for validation.
         "true_peak_time": analytic["peak_time"],   # = t0 + alpha*beta
         "true_peak_value": analytic["peak_value"],
         "true_auc": analytic["auc"],
@@ -176,7 +179,7 @@ def generate_synthetic_tac(
 
 
 def ground_truth_table(tac: SyntheticTAC) -> Dict[str, float]:
-    """SyntheticTAC の真値辞書を返す (JSON 化しやすいプレーン dict)。"""
+    """Return the ground-truth dictionary of a SyntheticTAC as a plain, JSON-ready dict."""
     return dict(tac.ground_truth)
 
 

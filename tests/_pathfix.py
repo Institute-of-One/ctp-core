@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""スタンドアロン実行 (python tests/test_x.py) でも ctp_core を解決するための共通パス追加。"""
+"""Add the path that lets ctp_core resolve even when a test file is run directly."""
 
 import os
 import sys

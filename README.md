@@ -136,11 +136,11 @@ tests/
 
 If you use this software, please cite it via [`CITATION.cff`](CITATION.cff).
 
-- Author: Shuji Yamamoto — Institute of One
+- Author: Shuji Yamamoto — Institute of One, LISIT Co., Ltd., Tokyo 150-0044, Japan
 - ORCID: [0000-0001-9211-1071](https://orcid.org/0000-0001-9211-1071)
 - Reference: IORN-001
 - DOI (all versions / concept): [10.5281/zenodo.20921268](https://doi.org/10.5281/zenodo.20921268)
-- DOI (this release, v0.1.0): [10.5281/zenodo.20921269](https://doi.org/10.5281/zenodo.20921269)
+- DOI (this release, v0.1.1): minted on release; see the Zenodo record for all versions
 
 ## License
 

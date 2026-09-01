@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""ctp-core 公開 API が GUI/DICOM/患者データ無しで import 可能であることを検証する。"""
+"""Check that the public ctp-core API imports with no GUI, no DICOM and no patient data."""
 
-import _pathfix  # noqa: F401  (リポジトリ root を sys.path へ)
+import _pathfix  # noqa: F401  (puts the repository root on sys.path)
 
 
 def test_import_ctp_core():
@@ -29,14 +29,14 @@ def test_submodule_imports():
 
 
 def test_core_has_no_gui_or_dicom_dependency():
-    """ctp_core のどのモジュールも GUI/DICOM/viewer を import していないこと。
+    """No ctp_core module imports a GUI, DICOM or viewer module.
 
-    モジュールを import した後の sys.modules を検査し、tkinter / pydicom /
-    viewer / main が ctp_core 経由で読み込まれていないことを確認する。
+    Inspects sys.modules after importing, to confirm that tkinter, pydicom, viewer
+    and main were not pulled in through ctp_core.
     """
     import sys
-    # クリーンに評価するため、関連モジュールが未ロードの状態を要求しない
-    # (他テストの影響を避けるため、ここでは ctp_core 内の宣言的依存を検査)
+    # Do not require that the related modules are unloaded, so the check is not
+    # affected by other tests: inspect the declared dependencies inside ctp_core.
     import importlib
     import ctp_core
 
@@ -52,7 +52,7 @@ def test_core_has_no_gui_or_dicom_dependency():
             src = f.read()
         for bad in forbidden:
             assert f"import {bad}" not in src and f"from {bad}" not in src, (
-                f"ctp_core.{modname} は禁止依存 '{bad}' を import しています"
+                f"ctp_core.{modname} imports the forbidden dependency '{bad}'"
             )
 
 

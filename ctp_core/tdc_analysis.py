@@ -1,17 +1,17 @@
 """
-TDC (Time-Density Curve) 解析モジュール
+Time-density curve (TDC) analysis
 ========================================
-ROIごとのTDCカーブを算出し、CSV出力・グラフ描画を行う。
+Computes a TDC per region of interest, writes it to CSV and plots it.
 
-TDCの各時相について以下の値を保持:
-- 平均CT値 (HU)
-- 標準偏差
-- 最小値 / 最大値
-- ピクセル数
+For each time point of the TDC it keeps:
+- mean CT number (HU)
+- standard deviation
+- minimum and maximum
+- pixel count
 
-CSV出力では全ROI×全時相×全統計量を一括保存。
+The CSV output saves every ROI, every time point and every statistic in one file.
 
-使い方:
+Usage:
     from tdc_analysis import TDCAnalyzer
     analyzer = TDCAnalyzer(volume_4d, metadata)
     tdc_data = analyzer.compute_tdc(roi)
@@ -25,12 +25,14 @@ from datetime import datetime
 
 
 class TDCData:
-    """単一ROIのTDCデータを保持するクラス。
+    """Holds the TDC data of a single region of interest.
 
-    ブラックボックス化を避けるため、以下を別フィールドで保持する:
-        mean           : raw の平均 CT値 (ROI内ピクセル平均)
-        smoothed       : 時間方向に平滑化した曲線 (前処理がない場合は mean と同一)
-        baseline_value : ベースライン推定値（単一スカラー）
+    To keep the processing from becoming a black box, these are kept as separate
+    fields:
+        mean           : the raw mean CT number, averaged over the pixels in the ROI
+        smoothed       : the curve smoothed along time; identical to mean when no
+                         preprocessing was applied
+        baseline_value : the estimated baseline, a single scalar
         enhancement    : smoothed - baseline_value
         gamma_fit      : GammaFitResult or None
     """
@@ -40,32 +42,32 @@ class TDCData:
         self.time_seconds = np.array(time_seconds, dtype=np.float64)
         self.n_times = len(time_seconds)
 
-        # 各時相の統計値 (raw)
+        # Per-time-point statistics of the raw data
         self.mean = np.zeros(self.n_times, dtype=np.float64)
         self.std = np.zeros(self.n_times, dtype=np.float64)
         self.min_val = np.zeros(self.n_times, dtype=np.float64)
         self.max_val = np.zeros(self.n_times, dtype=np.float64)
         self.pixel_count = np.zeros(self.n_times, dtype=np.int32)
 
-        # 前処理結果
+        # Preprocessing results
         self.smoothed = None           # np.ndarray or None
         self.baseline_value = None     # float or None
         self.enhancement = None        # np.ndarray (smoothed - baseline) or raw-baseline
-        self.preprocess_description = "(none)"  # ログ用文字列
+        self.preprocess_description = "(none)"  # a string for the log
 
-        # gamma fit 結果 (GammaFitResult or None)
+        # The gamma fit result: a GammaFitResult, or None
         self.gamma_fit = None
 
     @property
     def peak_enhancement(self):
-        """最大造影値を返す。"""
+        """Return the maximum enhancement."""
         if self.enhancement is not None:
             return float(np.nanmax(self.enhancement))
         return None
 
     @property
     def time_to_peak(self):
-        """ピークまでの時間（秒）を返す。"""
+        """Return the time to peak, in seconds."""
         if self.enhancement is not None:
             peak_idx = np.nanargmax(self.enhancement)
             return float(self.time_seconds[peak_idx])
@@ -73,16 +75,16 @@ class TDCData:
 
     @property
     def baseline_mean(self):
-        """ベースライン値を返す。前処理済みなら baseline_value を使用。"""
+        """Return the baseline. Uses baseline_value once preprocessing has run."""
         if self.baseline_value is not None:
             return float(self.baseline_value)
-        # フォールバック: 先頭2時相平均
+        # Fallback: the mean of the first two time points
         n_baseline = min(2, self.n_times)
         return float(np.mean(self.mean[:n_baseline]))
 
 
 class TDCAnalyzer:
-    """TDC解析エンジン。"""
+    """The TDC analysis engine."""
 
     def __init__(self, volume_4d, metadata):
         """
@@ -95,23 +97,24 @@ class TDCAnalyzer:
         self.n_times = metadata['n_times']
 
     def compute_tdc(self, roi, slice_index=None, preprocess_config=None):
-        """指定ROIのTDCを算出する。
+        """Compute the TDC of a given region of interest.
 
         Args:
-            roi: ROIオブジェクト（viewer.ROI）
-            slice_index: 対象スライスインデックス。Noneの場合は全スライスの平均。
-            preprocess_config: preprocessing.PreprocessConfig or None。
-                               Noneの場合は従来互換（先頭2相平均をbaseline）。
+            roi: the ROI object (viewer.ROI)
+            slice_index: index of the slice; None averages over every slice.
+            preprocess_config: a preprocessing.PreprocessConfig, or None.
+                               None keeps the older behaviour, in which the mean of
+                               the first two time points is the baseline.
 
         Returns:
-            TDCData: TDC解析結果（raw / smoothed / baseline / enhancement を保持）
+            TDCData: the result, holding raw, smoothed, baseline and enhancement
         """
         rows = self.meta['rows']
         cols = self.meta['cols']
         mask = roi.get_mask(rows, cols)
 
         if mask.sum() == 0:
-            raise ValueError(f"ROI '{roi.label}' 内にピクセルがありません")
+            raise ValueError(f"There are no pixels inside ROI '{roi.label}'")
 
         tdc = TDCData(roi.label, self.meta['time_seconds'])
 
@@ -133,11 +136,11 @@ class TDCAnalyzer:
 
     @staticmethod
     def _apply_preprocess_to_tdc(tdc, preprocess_config):
-        """TDCData.mean に対して前処理を適用し、
-        tdc.smoothed / baseline_value / enhancement / preprocess_description を更新する。
+        """Apply preprocessing to TDCData.mean and update tdc.smoothed,
+        tdc.baseline_value, tdc.enhancement and tdc.preprocess_description.
         """
         if preprocess_config is None:
-            # 従来互換: 先頭2相平均を baseline
+            # Older behaviour: the mean of the first two time points is the baseline
             n_baseline = min(2, tdc.n_times)
             baseline = float(np.mean(tdc.mean[:n_baseline]))
             tdc.smoothed = tdc.mean.copy()
@@ -154,18 +157,18 @@ class TDCAnalyzer:
         tdc.preprocess_description = result['config_description']
 
     def compute_tdc_from_mask(self, mask, label="ROI", slice_index=None):
-        """マスク配列から直接TDCを算出する。
+        """Compute a TDC directly from a mask array.
 
         Args:
             mask: np.ndarray shape=(rows, cols), dtype=bool
-            label: ROIのラベル
-            slice_index: 対象スライスインデックス
+            label: the label of the region
+            slice_index: index of the slice to use
 
         Returns:
             TDCData
         """
         if mask.sum() == 0:
-            raise ValueError(f"マスク '{label}' 内にピクセルがありません")
+            raise ValueError(f"There are no pixels inside mask '{label}'")
 
         tdc = TDCData(label, self.meta['time_seconds'])
 
@@ -188,11 +191,11 @@ class TDCAnalyzer:
         return tdc
 
     def compute_pixel_tdc(self, row, col, slice_index):
-        """単一ピクセルのTDCを算出する。
+        """Compute the TDC of a single pixel.
 
         Args:
-            row, col: ピクセル座標
-            slice_index: スライスインデックス
+            row, col: the pixel coordinates
+            slice_index: index of the slice
 
         Returns:
             TDCData
@@ -224,26 +227,27 @@ class TDCAnalyzer:
                    aif_time_seconds=None,
                    preprocess_description=None,
                    delimiter=','):
-        """TDCデータをCSVファイルに出力する。
+        """Write TDC data to a CSV file.
 
         Args:
-            tdc_list: list[TDCData] - 出力するTDCデータのリスト
-            filepath: 出力先ファイルパス
-            include_raw:         rawの平均CT値（mean）列を含める
-            include_smoothed:    前処理後の平滑化曲線列を含める
-            include_enhancement: baseline補正後の造影値列を含める
-            include_fitted:      gamma変量フィット曲線列を含める (fit済みROIのみ)
-            include_stats:       SD/Min/Max/Pixelsを含める (raw基準)
-            include_gamma_params: サマリーにフィットパラメータを含める
-            aif_curve:           np.ndarray 省略可。AIF曲線を列に追加。
-            aif_time_seconds:    AIFの時間軸（省略時はtdc_list[0]に揃える）
-            preprocess_description: サマリ冒頭に記録する前処理設定文字列
-            delimiter: 区切り文字
+            tdc_list: list[TDCData] - the TDC data to write
+            filepath: where to write the file
+            include_raw:         include the raw mean CT number column
+            include_smoothed:    include the smoothed curve column
+            include_enhancement: include the baseline-corrected enhancement column
+            include_fitted:      include the gamma-variate fit column, for fitted ROIs
+            include_stats:       include SD, Min, Max and Pixels, from the raw data
+            include_gamma_params: include the fit parameters in the summary
+            aif_curve:           optional np.ndarray; adds the AIF curve as a column
+            aif_time_seconds:    the AIF time axis; defaults to that of tdc_list[0]
+            preprocess_description: the preprocessing settings, recorded at the top
+                                 of the summary
+            delimiter: the field separator
         """
         if not tdc_list and aif_curve is None:
-            raise ValueError("保存するデータがありません")
+            raise ValueError("There is no data to save.")
 
-        # 時間軸は tdc_list[0] または aif 側
+        # The time axis comes from tdc_list[0], or from the AIF
         if tdc_list:
             time_sec = tdc_list[0].time_seconds
             n_times = tdc_list[0].n_times
@@ -251,13 +255,13 @@ class TDCAnalyzer:
             time_sec = np.asarray(aif_time_seconds, dtype=np.float64)
             n_times = len(time_sec)
 
-        # 何も列がない状態を防ぐ
+        # Refuse to write a file with no columns at all
         any_col = any([include_raw, include_smoothed, include_enhancement,
                        include_fitted, aif_curve is not None])
         if not any_col:
-            raise ValueError("出力する列が選択されていません")
+            raise ValueError("No columns were selected for output.")
 
-        # ヘッダー構築
+        # Build the header
         header = ['Time(s)']
         for tdc in tdc_list:
             label = tdc.roi_label
@@ -281,7 +285,7 @@ class TDCAnalyzer:
             if include_enhancement:
                 header.append('AIF_Enhancement(HU)')
 
-        # データ行
+        # Data rows
         data_rows = []
         aif_arr = np.asarray(aif_curve, dtype=np.float64) if aif_curve is not None else None
         aif_baseline = (
@@ -301,7 +305,7 @@ class TDCAnalyzer:
                 if include_fitted and tdc.gamma_fit is not None \
                         and tdc.gamma_fit.success \
                         and tdc.gamma_fit.fitted_curve is not None:
-                    # フィット曲線は baseline を足し戻して元スケールで出す
+                    # Add the baseline back, so the fit is on the original scale
                     val = tdc.gamma_fit.fitted_curve[t] + float(tdc.baseline_value or 0.0)
                     row.append(f'{val:.2f}')
                 if include_stats:
@@ -315,7 +319,7 @@ class TDCAnalyzer:
                     row.append(f'{aif_arr[t] - aif_baseline:.2f}')
             data_rows.append(row)
 
-        # サマリー
+        # Summary
         summary_rows = [[], ['# Summary']]
         if preprocess_description:
             summary_rows.append([f'# preprocess: {preprocess_description}'])
@@ -350,32 +354,32 @@ class TDCAnalyzer:
                 f'Samples={len(aif_arr)}',
             ])
 
-        # ファイル書き込み（BOM付きUTF-8でExcel互換）
+        # Write the file as UTF-8 with a BOM, for compatibility with Excel
         with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f, delimiter=delimiter)
             writer.writerow(header)
             writer.writerows(data_rows)
             writer.writerows(summary_rows)
 
-        print(f"TDCデータを保存しました: {filepath}")
-        print(f"  ROI数: {len(tdc_list)}, 時相数: {n_times}, 列数: {len(header)}")
+        print(f"TDC data saved: {filepath}")
+        print(f"  ROIs: {len(tdc_list)}, time points: {n_times}, columns: {len(header)}")
 
     @staticmethod
     def export_all_pixel_tdc_csv(volume_4d, metadata, slice_index,
                                   filepath, mask=None):
-        """指定スライスの全ピクセル（またはマスク内ピクセル）の
-        TDCを一括CSV出力する。
+        """Write the TDC of every pixel of a slice, or of every pixel inside a mask,
+        to a single CSV file.
 
-        これが通常のPerfusionソフトではできない機能。
+        This is something ordinary perfusion software does not offer.
 
         Args:
-            volume_4d: 4Dボリューム
-            metadata: メタデータ
-            slice_index: 対象スライス
-            filepath: 出力ファイルパス
-            mask: ピクセルフィルタ（Noneなら全ピクセル）
+            volume_4d: the 4D volume
+            metadata: the metadata
+            slice_index: index of the slice to use
+            filepath: where to write the file
+            mask: a pixel filter; None means every pixel
 
-        出力形式:
+        Output format:
             Row, Col, T0(HU), T1(HU), T2(HU), ..., Enhancement_Peak, Time_to_Peak
         """
         n_times = metadata['n_times']
@@ -383,7 +387,7 @@ class TDCAnalyzer:
         cols = metadata['cols']
         time_seconds = metadata['time_seconds']
 
-        # ヘッダー
+        # Header
         header = ['Row', 'Col']
         for t in range(n_times):
             header.append(f'T{t}_{time_seconds[t]:.1f}s(HU)')
@@ -414,19 +418,19 @@ class TDCAnalyzer:
             writer.writerow(header)
             writer.writerows(data_rows)
 
-        print(f"全ピクセルTDCを保存しました: {filepath}")
-        print(f"  ピクセル数: {len(data_rows)}, 時相数: {n_times}")
+        print(f"All-pixel TDC saved: {filepath}")
+        print(f"  pixels: {len(data_rows)}, time points: {n_times}")
 
 
 def plot_tdc(tdc_list, title="Time-Density Curve", show_enhancement=False,
              save_path=None):
-    """TDCカーブをプロットする。
+    """Plot TDC curves.
 
     Args:
         tdc_list: list[TDCData]
-        title: グラフタイトル
-        show_enhancement: Trueならベースライン差分を表示
-        save_path: 画像保存パス（Noneなら表示のみ）
+        title: the plot title
+        show_enhancement: when True, show the difference from baseline
+        save_path: where to save the image; None only displays it
     """
     import matplotlib.pyplot as plt
 
@@ -443,7 +447,7 @@ def plot_tdc(tdc_list, title="Time-Density Curve", show_enhancement=False,
 
         ax.plot(t, y, 'o-', label=tdc.roi_label, linewidth=2, markersize=4)
 
-        # エラーバー（±1SD）
+        # Error bars, +/- 1 SD
         ax.fill_between(
             t, y - tdc.std, y + tdc.std,
             alpha=0.15
@@ -455,7 +459,7 @@ def plot_tdc(tdc_list, title="Time-Density Curve", show_enhancement=False,
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3)
 
-    # サマリー情報
+    # Summary information
     summary_lines = []
     for tdc in tdc_list:
         summary_lines.append(
@@ -474,6 +478,6 @@ def plot_tdc(tdc_list, title="Time-Density Curve", show_enhancement=False,
 
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        print(f"TDCグラフを保存しました: {save_path}")
+        print(f"TDC plot saved: {save_path}")
 
     return fig, ax

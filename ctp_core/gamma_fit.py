@@ -1,23 +1,23 @@
 """
 Gamma Variate Fitting for TDC / AIF
 ====================================
-ボーラス注入後のcontrast passage を表現する gamma variate 関数による
-フィッティングと、それに基づく時相指標（TTP / Peak / AUC / BAT）の計算。
+Fitting a gamma-variate function, which represents the contrast passage after a
+bolus injection, and computing the timing indices (TTP, Peak, AUC, BAT) from it.
 
-定義式 (本実装で採用):
+Definition used in this implementation:
     y(t) = K * (t - t0)^alpha * exp(-(t - t0) / beta)   for t > t0
     y(t) = 0                                            otherwise
 
-解析的性質:
-    ピーク時刻:   t_peak = t0 + alpha * beta
-    ピーク値:     y_peak = K * (alpha*beta)^alpha * exp(-alpha)
+Analytic properties:
+    peak time:    t_peak = t0 + alpha * beta
+    peak value:   y_peak = K * (alpha*beta)^alpha * exp(-alpha)
     AUC (0→∞):    K * beta^(alpha+1) * Gamma(alpha+1)
 
-設計方針:
-    - raw_indices (フィットなし)   : 高速・シンプル・参照値として使う
-    - fit_gamma_variate (curve単位) : ROI詳細解析に使用
-    - compute_indices_map           : voxel-wise にマップ化。method を切替可能
-    - 失敗時は silent failure にせず GammaFitResult.success=False + error_message を必ず残す
+Design:
+    - raw_indices (no fitting)      : fast, simple, used as a reference value
+    - fit_gamma_variate (per curve) : used for detailed ROI analysis
+    - compute_indices_map           : voxel-wise maps; the method is selectable
+    - never fail silently: on failure, GammaFitResult.success is False and error_message is always set
 """
 
 from dataclasses import dataclass, field
@@ -44,7 +44,7 @@ def gamma_variate(t: np.ndarray, K: float, t0: float,
     if not np.any(mask):
         return out
     tau = t[mask] - t0
-    # ログスペースで計算して数値安定化
+    # Computed in log space for numerical stability.
     with np.errstate(invalid='ignore', divide='ignore', over='ignore'):
         log_y = alpha * np.log(tau) - tau / beta
         vals = K * np.exp(log_y)
@@ -55,20 +55,20 @@ def gamma_variate(t: np.ndarray, K: float, t0: float,
 
 def gamma_variate_analytic(K: float, t0: float,
                             alpha: float, beta: float) -> Dict[str, float]:
-    """パラメータから解析的な指標を返す。"""
+    """Return the analytic indices derived from the parameters."""
     if alpha <= 0 or beta <= 0:
         return {'peak_time': np.nan, 'peak_value': np.nan, 'auc': np.nan}
     peak_time = t0 + alpha * beta
-    # ピーク値は log 経由で安定計算
+    # The peak value is computed through the logarithm, for stability.
     log_peak = alpha * np.log(alpha * beta) - alpha
     peak_value = float(K * np.exp(log_peak))
 
-    # AUC: Gamma(alpha+1) を scipy.special から
+    # AUC: take Gamma(alpha+1) from scipy.special
     try:
         from scipy.special import gamma as gamma_fn
         auc = float(K * (beta ** (alpha + 1)) * gamma_fn(alpha + 1))
     except ImportError:
-        # scipy がない場合は数値積分
+        # Fall back to numerical integration when scipy is unavailable.
         auc = np.nan
 
     return {
@@ -84,17 +84,17 @@ def gamma_variate_analytic(K: float, t0: float,
 
 def initial_guess(time: np.ndarray, curve: np.ndarray,
                   bat_threshold_ratio: float = 0.1) -> Dict[str, float]:
-    """フィット初期値を推定する。
+    """Estimate the initial values for the fit.
 
     Args:
-        time: 時間軸 (秒)
-        curve: 既にベースライン補正された enhancement 曲線
-        bat_threshold_ratio: ピーク値に対する BAT 判定しきい値の比率
+        time: time axis (seconds)
+        curve: an enhancement curve that has already been baseline corrected
+        bat_threshold_ratio: BAT threshold as a fraction of the peak value
     """
     time = np.asarray(time, dtype=np.float64)
     curve = np.asarray(curve, dtype=np.float64)
 
-    # ピーク位置
+    # Peak position
     if np.all(~np.isfinite(curve)) or np.nanmax(curve) <= 0:
         return {
             'K': 1.0, 't0': float(time[0]) if len(time) > 0 else 0.0,
@@ -105,19 +105,19 @@ def initial_guess(time: np.ndarray, curve: np.ndarray,
     peak_time = float(time[peak_idx])
     peak_value = float(curve[peak_idx])
 
-    # BAT: ピークまでで閾値を初めて超えるサンプル
+    # BAT: the first sample up to the peak that crosses the threshold.
     threshold = bat_threshold_ratio * peak_value
     rising = np.where(curve[:peak_idx + 1] > threshold)[0]
     dt = float(time[1] - time[0]) if len(time) >= 2 else 1.0
     if len(rising) > 0:
-        t0 = float(time[rising[0]]) - dt  # 1サンプル手前に置く
+        t0 = float(time[rising[0]]) - dt  # place it one sample earlier
     else:
         t0 = float(time[0]) - dt
 
-    # alpha = 2 (典型的ボーラス), beta から peak_time 整合
+    # alpha = 2 for a typical bolus; beta then follows from the peak time.
     alpha = 2.0
     beta = max((peak_time - t0) / alpha, dt * 0.5)
-    # K は ピーク値一致から逆算: peak_value = K * (alpha*beta)^alpha * exp(-alpha)
+    # K comes from matching the peak: peak_value = K * (alpha*beta)^alpha * exp(-alpha)
     denom = ((alpha * beta) ** alpha) * np.exp(-alpha)
     K = peak_value / denom if denom > 0 else peak_value
     return {'K': float(K), 't0': float(t0), 'alpha': alpha, 'beta': float(beta)}
@@ -129,7 +129,7 @@ def initial_guess(time: np.ndarray, curve: np.ndarray,
 
 @dataclass
 class GammaFitResult:
-    """gamma variate フィットの結果。失敗時も必ず返すこと（silent failure 禁止）。"""
+    """The result of a gamma-variate fit. Returned even on failure -- never fail silently."""
 
     success: bool
     # Parameters
@@ -138,7 +138,7 @@ class GammaFitResult:
     alpha: float = np.nan
     beta: float = np.nan
 
-    # Derived indices (フィットから解析的に計算)
+    # Derived indices, computed analytically from the fit
     peak_value: float = np.nan   # Peak enhancement
     peak_time: float = np.nan    # TTP
     auc: float = np.nan          # AUC
@@ -148,13 +148,13 @@ class GammaFitResult:
     rmse: float = np.nan
     r_squared: float = np.nan
 
-    # 失敗時の原因
+    # Why the fit failed
     error_message: str = ""
 
-    # 可視化用フィット曲線（時系列サンプリング済み）
+    # The fitted curve for display, sampled on the time axis
     fitted_curve: Optional[np.ndarray] = None
 
-    # デバッグ用: 使った初期値
+    # For debugging: the initial values that were used
     initial_params: Dict[str, float] = field(default_factory=dict)
 
     def summary_line(self) -> str:
@@ -173,14 +173,14 @@ def fit_gamma_variate(time: np.ndarray, curve: np.ndarray,
                       bounds: Optional[tuple] = None,
                       min_r_squared: float = -np.inf,
                       min_peak_value: float = 0.0) -> GammaFitResult:
-    """単一の曲線にgamma variateをフィットする。
+    """Fit a gamma variate to a single curve.
 
     Args:
         time: shape (n_times,)
-        curve: shape (n_times,) ※ ベースライン補正済みを推奨
+        curve: shape (n_times,); baseline-corrected input is recommended
         bounds: ((K_lo,t0_lo,alpha_lo,beta_lo), (K_hi,t0_hi,alpha_hi,beta_hi))
-        min_r_squared: これ未満なら failure 扱い
-        min_peak_value: これ未満の Peak は failure 扱い（ノイズ棄却）
+        min_r_squared: anything below this counts as a failure
+        min_peak_value: a peak below this counts as a failure, rejecting noise
 
     Returns:
         GammaFitResult
@@ -190,7 +190,7 @@ def fit_gamma_variate(time: np.ndarray, curve: np.ndarray,
 
     result = GammaFitResult(success=False)
 
-    # 入力チェック
+    # Check the input
     if time.shape != curve.shape:
         result.error_message = f"shape mismatch time={time.shape} curve={curve.shape}"
         return result
@@ -210,12 +210,12 @@ def fit_gamma_variate(time: np.ndarray, curve: np.ndarray,
         result.error_message = "scipy not available"
         return result
 
-    # 初期値
+    # Initial values
     p0 = initial_guess(time, curve)
     p0_arr = [p0['K'], p0['t0'], p0['alpha'], p0['beta']]
     result.initial_params = p0
 
-    # バウンド
+    # Bounds
     if bounds is None:
         time_range = float(time[-1] - time[0]) if len(time) >= 2 else 1.0
         peak_max = float(np.nanmax(curve))
@@ -224,7 +224,7 @@ def fit_gamma_variate(time: np.ndarray, curve: np.ndarray,
         hi = [K_hi, float(time[-1]), 20.0, time_range * 4]
         bounds = (lo, hi)
 
-    # フィット実行
+    # Run the fit
     try:
         popt, _pcov = curve_fit(
             gamma_variate, time, curve,
@@ -243,7 +243,7 @@ def fit_gamma_variate(time: np.ndarray, curve: np.ndarray,
 
     fitted = gamma_variate(time, K, t0, alpha, beta)
 
-    # 品質メトリクス
+    # Quality metrics
     residuals = curve - fitted
     ss_res = float(np.sum(residuals ** 2))
     ss_tot = float(np.sum((curve - np.mean(curve)) ** 2))
@@ -284,9 +284,9 @@ def fit_gamma_variate(time: np.ndarray, curve: np.ndarray,
 
 def compute_raw_indices(time: np.ndarray, enhancement_curve: np.ndarray,
                          bat_threshold_ratio: float = 0.1) -> Dict[str, float]:
-    """フィットせずに enhancement 曲線から指標を計算する。
+    """Compute indices from an enhancement curve without fitting.
 
-    信頼できない場合でも NaN を返すのみで例外は投げない。
+    Returns NaN when the result is not trustworthy; it never raises.
 
     Returns:
         dict: 'ttp', 'peak', 'auc', 'bat'
@@ -322,20 +322,20 @@ def compute_indices_map(corrected_slice: np.ndarray, time: np.ndarray,
                          brain_mask: Optional[np.ndarray] = None,
                          method: str = 'raw',
                          progress_callback=None) -> Dict[str, Any]:
-    """スライス内の全ボクセル (mask内) に対して TTP/Peak/AUC/BAT マップを計算する。
+    """Compute TTP/Peak/AUC/BAT maps for every voxel in a slice, inside the mask.
 
     Args:
-        corrected_slice: shape (n_times, rows, cols)  ベースライン補正後
-        time: 時間軸
-        brain_mask: (rows, cols) bool. None なら全ボクセル
+        corrected_slice: shape (n_times, rows, cols), after baseline correction
+        time: the time axis
+        brain_mask: (rows, cols) bool; None means every voxel
         method: 'raw' | 'gamma'
         progress_callback: optional callable(frac) 0.0→1.0
 
     Returns:
         dict:
-            'ttp', 'peak', 'auc', 'bat': (rows, cols) マップ
+            'ttp', 'peak', 'auc', 'bat': (rows, cols) maps
             'failure_mask':               (rows, cols) bool / None
-            'success_rate':               float (gammaのみ。rawでは None)
+            'success_rate':               float (gamma only; None for raw)
             'method':                     str
             'n_processed':                int
             'n_failed':                   int
@@ -365,16 +365,16 @@ def _compute_indices_map_raw(corrected_slice: np.ndarray, time: np.ndarray,
     positive = np.maximum(corrected_slice, 0)
     auc = np.trapezoid(positive, time, axis=0)
 
-    # BAT (10% threshold) - vectorized 化
+    # BAT (10% threshold), vectorized
     threshold = 0.1 * peak_value                        # (rows, cols)
-    # 各voxelで threshold を超える最初の time を取得
+    # For each voxel, find the first time at which the threshold is exceeded.
     above = corrected_slice > threshold[np.newaxis, :, :]  # (n_t, rows, cols)
-    # 最初のTrue のindex。見つからない場合は-1で埋める
+    # Index of the first True; filled with -1 where there is none.
     any_above = np.any(above, axis=0)
     first_idx = np.argmax(above, axis=0)               # (rows, cols)
     bat = np.where(any_above, time[first_idx], np.nan)
 
-    # 有効ボクセル: peak > 0
+    # Valid voxels: peak > 0
     valid = peak_value > 0
     ttp = np.where(valid, ttp, np.nan)
     auc_out = np.where(valid, auc, np.nan)
@@ -414,7 +414,7 @@ def _compute_indices_map_gamma(corrected_slice: np.ndarray, time: np.ndarray,
     bat = np.full((rows, cols), np.nan, dtype=np.float32)
     failure_mask = np.zeros((rows, cols), dtype=bool)
 
-    # 処理対象リスト
+    # The list of voxels to process
     if brain_mask is None:
         target_rc = [(r, c) for r in range(rows) for c in range(cols)]
     else:
@@ -449,11 +449,11 @@ def _compute_indices_map_gamma(corrected_slice: np.ndarray, time: np.ndarray,
                 progress_callback(frac)
                 next_progress += 0.05
 
-    # brain_mask 外は NaN のまま
+    # Outside brain_mask the value stays NaN
     if brain_mask is not None:
         for arr in (ttp, peak_v, auc, bat):
             arr[~brain_mask] = np.nan
-        failure_mask[~brain_mask] = False  # 対象外は failure ではない
+        failure_mask[~brain_mask] = False  # outside the mask is not a failure
 
     success_rate = (1.0 - n_failed / n_target) if n_target > 0 else 0.0
 

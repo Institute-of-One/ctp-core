@@ -1,19 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-ctp-core 再現性デモ (IORN-001)
-==============================
+ctp-core reproducibility demonstration (IORN-001)
+=================================================
 
-合成 CTP 時間–濃度曲線を生成し、ctp-core の gamma-variate フィットで
-解析して、検証用の図とメトリクスを出力する **決定論的** デモ。
+A **deterministic** demonstration: generate a synthetic CT-perfusion
+time-attenuation curve, analyse it with the ctp-core gamma-variate fit, and write
+the figure and the metrics used for validation.
 
-実行:
+Run:
     python examples/run_synthetic_demo.py
 
-出力:
-    outputs/synthetic_fit_example.png   … クリーン/ノイズ/フィット曲線の図
-    outputs/synthetic_metrics.json      … 真値・フィット値・誤差のメトリクス
+Outputs:
+    outputs/synthetic_fit_example.png   the clean, noisy and fitted curves
+    outputs/synthetic_metrics.json      ground truth, fitted values and errors
 
-GUI・DICOM・患者/顧客データには一切依存しない。
+It depends on no graphical interface, no DICOM handling and no patient or client data.
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ import json
 
 import numpy as np
 
-# examples/ から実行してもパッケージを解決できるようリポジトリ root を追加
+# Add the repository root, so the package resolves when run from examples/.
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
@@ -42,9 +43,9 @@ OUT_DIR = os.path.join(_REPO_ROOT, "outputs")
 def main() -> int:
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    # --- 1. 合成 CTP 曲線を生成 (固定シードで完全再現) ---
-    # 検証デモ: 単一ボーラス + SNR=20 ノイズ。真値パラメータの回復精度を示す。
-    # (再循環成分は ctp_core.synthetic の機能としてテスト側で別途検証する)
+    # --- 1. Generate the synthetic curve, fully reproducible from a fixed seed ---
+    # A single bolus with SNR 20 noise, showing how well the true parameters are
+    # recovered. The recirculation component is exercised separately in the tests.
     tac = generate_synthetic_tac(
         amplitude=60.0, t0=8.0, alpha=3.0, beta=2.0,
         n_time_points=40, dt=1.0, snr=20.0,
@@ -52,13 +53,13 @@ def main() -> int:
     )
     gt = tac.ground_truth
 
-    # --- 2. ctp-core で gamma-variate フィット ---
+    # --- 2. Fit a gamma variate with ctp-core ---
     fit = fit_gamma_variate(tac.time, tac.noisy)
 
-    # --- 3. ピーク時刻・ピーク値 (フィット由来 + raw 検出) ---
+    # --- 3. Peak time and peak value, from the fit and from raw detection ---
     raw = compute_raw_indices(tac.time, tac.noisy)
 
-    # --- 4. 派生パラメータ (フィット結果) ---
+    # --- 4. Derived parameters, from the fit ---
     derived = {
         "fit_success": bool(fit.success),
         "K": fit.K, "t0": fit.t0, "alpha": fit.alpha, "beta": fit.beta,
@@ -67,14 +68,14 @@ def main() -> int:
         "r_squared": fit.r_squared, "rmse": fit.rmse,
     }
 
-    # 真値との誤差 (再現性検証の核)
+    # Error against the ground truth, the point of the reproducibility check
     errors = {
         "peak_time_abs_err": abs(fit.peak_time - gt["true_peak_time"]),
         "peak_value_abs_err": abs(fit.peak_value - gt["true_peak_value"]),
         "bat_abs_err": abs(fit.bat - gt["true_bat"]),
     }
 
-    # --- 5. 図を保存 ---
+    # --- 5. Save the figure ---
     fig, ax = plt.subplots(figsize=(7, 4.5))
     ax.plot(tac.time, tac.noisy, "o", ms=4, color="0.5",
             label="noisy (SNR=%.0f)" % gt["snr"] if np.isfinite(gt["snr"]) else "noisy")
@@ -96,7 +97,7 @@ def main() -> int:
     fig.savefig(fig_path, dpi=150)
     plt.close(fig)
 
-    # --- 6. メトリクスを JSON 保存 + サマリ表示 ---
+    # --- 6. Save the metrics as JSON and print a summary ---
     metrics = {
         "ground_truth": gt,
         "raw_detection": raw,

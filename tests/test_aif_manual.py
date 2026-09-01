@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""手動AIF抽出 (AIFDetector.extract_aif_at) の検証 (合成データのみ)。"""
+"""Manual AIF extraction (AIFDetector.extract_aif_at), synthetic data only."""
 
 import _pathfix  # noqa: F401
 import numpy as np
@@ -35,7 +35,7 @@ def test_extract_aif_at_detects_bolus_peak():
     vol, meta = _synthetic_volume()
     det = AIFDetector(vol, meta)
     res = det.extract_aif_at(16, 16, slice_index=0, radius=2)
-    # ボーラスのピークは t=6 付近
+    # The bolus peaks near t = 6
     assert abs(int(np.argmax(res.aif_enhancement)) - 6) <= 1
     assert np.max(res.aif_enhancement) > 0
 
@@ -50,7 +50,7 @@ def test_extract_aif_at_does_not_mutate_volume():
 def test_extract_aif_at_clips_out_of_bounds():
     vol, meta = _synthetic_volume()
     det = AIFDetector(vol, meta)
-    # 範囲外座標でも例外を投げずクリップされる
+    # Out-of-range coordinates are clipped rather than raising
     res = det.extract_aif_at(-5, 999, slice_index=0, radius=2)
     assert res.n_aif_voxels >= 1
     assert 0 <= res.aif_center[0] < meta["rows"]

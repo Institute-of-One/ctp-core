@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""ASIST a-LUT のコア検証 (ctp_core.a_lut)。
+"""Core checks on the ASIST a-LUT (ctp_core.a_lut).
 
-同梱 LUT 資産 (ctp_core/assets/alut.csv) が importlib.resources で安全に
-解決されることを前提に、固定スカラー入力に対する **決定論的 RGB 出力** と
-量的値の不変性を確認する。
+Assuming the packaged LUT asset (ctp_core/assets/alut.csv) resolves safely through
+importlib.resources, this confirms **deterministic RGB output** for a fixed scalar
+input, and that the quantitative values are left unchanged.
 """
 
 import _pathfix  # noqa: F401
@@ -18,12 +18,12 @@ def test_packaged_lut_loads():
     lut = load_a_lut("asist")
     assert lut.shape == (LUT_SIZE, 3)
     assert lut.dtype == np.uint8
-    assert tuple(lut[0]) == (0, 0, 0)       # 低値 = 黒
-    assert tuple(lut[255]) == (255, 0, 0)   # 高値 = 赤
+    assert tuple(lut[0]) == (0, 0, 0)       # low value = black
+    assert tuple(lut[255]) == (255, 0, 0)   # high value = red
 
 
 def test_deterministic_rgb_for_fixed_scalar():
-    """固定スカラー値 → bit-exact に同一 RGB (要件: deterministic RGB output)。"""
+    """A fixed scalar gives a bit-exact identical RGB: deterministic RGB output."""
     d = np.array([[0.0, 40.0, 80.0]])
     r1 = apply_a_lut(d, map_type="cbf")
     r2 = apply_a_lut(d, map_type="cbf")
@@ -31,7 +31,7 @@ def test_deterministic_rgb_for_fixed_scalar():
 
 
 def test_fixed_scalar_exact_rgb_values():
-    """vmin=0,vmax=80 のとき 0/40/80 -> LUT index 0/128/255 の RGB。"""
+    """With vmin=0 and vmax=80, values 0/40/80 give LUT indices 0/128/255."""
     lut = load_a_lut("asist")
     d = np.array([[0.0, 40.0, 80.0]])
     rgb = apply_a_lut(d, map_type="cbf")
@@ -41,7 +41,7 @@ def test_fixed_scalar_exact_rgb_values():
 
 
 def test_quantitative_values_unchanged():
-    """LUT 適用は可視化のみ: 入力スカラー配列を破壊しない。"""
+    """Applying the LUT is display only: it does not modify the input array."""
     d = np.array([[10.0, 20.0], [30.0, 40.0]])
     snapshot = d.copy()
     _ = apply_a_lut(d, map_type="cbf")

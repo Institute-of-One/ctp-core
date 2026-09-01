@@ -3,28 +3,32 @@
 ctp-core — open, reproducible CT Perfusion analysis core
 ========================================================
 
-IORN-001 のための再現可能な解析コア。GUI/DICOM/UI に依存しない純粋な
-科学ロジック (numpy/scipy のみ) を提供し、GitHub / Zenodo DOI 公開、
-および独立した検証・再現を可能にする。
+The reproducible analysis core for IORN-001. It provides the scientific logic alone
+(NumPy and SciPy only), with no dependency on a graphical user interface, DICOM
+input/output or any user interface, so that it can be released publicly on GitHub with a
+Zenodo DOI and verified and reproduced independently.
 
-設計境界:
-  - **ctp-core (本パッケージ)**: アルゴリズム・数値計算・可視化 (ASIST a-LUT)・
-    合成データ生成・検証スクリプト。GUI/tkinter/DICOM I/O には依存しない。
-  - **ctp-app (GUI アプリ)**: DICOM ワークフロー・インタラクティブビューア・
-    バッチ・設定など実用機能。ctp-core を *呼び出す* (アルゴリズムを複製しない)。
+Design boundary:
+  - **ctp-core (this package)**: algorithms, numerical computation, visualization
+    (the ASIST a-LUT), synthetic data generation and validation scripts. It does not
+    depend on a GUI, tkinter or DICOM input/output.
+  - **ctp-app (the graphical application)**: the DICOM workflow, the interactive viewer,
+    batch processing and configuration. It *calls* ctp-core rather than duplicating its
+    algorithms.
 
-移行方針 (段階的・非破壊):
-  科学ロジックは段階的に本パッケージへ移設する。移行期間中は旧トップレベル
-  モジュール (例: ``gamma_fit.py``) を後方互換 shim として残し、既存 GUI の
-  import を一切変更せずに動作させる。
+Migration policy (incremental and non-breaking):
+  The scientific logic is moved into this package in stages. During the transition the
+  older top-level modules (for example ``gamma_fit.py``) remain as backwards-compatible
+  shims, so that the existing graphical application keeps working without a single
+  import being changed.
 
-公開 API (順次拡張):
+Public API (extended as the migration proceeds):
   from ctp_core.gamma_fit import fit_gamma_variate, compute_indices_map
 """
 
 from __future__ import annotations
 
-# --- 移設済みモジュールの再エクスポート (順次追加) ---
+# --- re-export the modules that have been moved in so far ---
 from . import gamma_fit
 from . import preprocessing
 from . import tdc_analysis
@@ -72,4 +76,4 @@ __all__ = [
     "to_mpl_colormap", "MAP_PRESETS",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
