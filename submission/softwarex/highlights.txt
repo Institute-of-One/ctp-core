@@ -1,0 +1,5 @@
+• Open Python core for auditable CT-perfusion curve analysis
+• Analytic Peak, TTP, BAT, and AUC from gamma-variate parameters
+• Explicit failure states prevent silent propagation of unusable fits
+• Deterministic synthetic benchmarks quantify recovery across SNR 5-100
+• ASIST-Japan a-LUT supports standardized, value-preserving visualization

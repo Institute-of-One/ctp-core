@@ -7,3 +7,20 @@ output/
 *.egg-info/
 .DS_Store
 RESUME.md
+
+# The SoftwareX submission package. The sources are tracked -- the builders that
+# hold the manuscript text, the conformance and reference checkers, the figure
+# script and the data behind it -- so the submission can be rebuilt and checked.
+# What is excluded is everything derived from them, and the correspondence:
+#
+#   built documents (.docx/.pdf) regenerate from build_submission_docs.py
+#   figure_unitobrain_mol001.png regenerates from the .json and its script
+#   _returned_* and _qa_* are the editorial office's returned working files
+#   response_to_editorial_office.txt is correspondence about a paper still under
+#     review; the repository is public and that is not ours to publish here
+submission/**/*.docx
+submission/**/*.pdf
+submission/**/*.png
+submission/**/_returned_*
+submission/**/_qa_*
+submission/**/response_to_editorial_office.txt
