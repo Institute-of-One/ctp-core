@@ -30,7 +30,10 @@ identifiers:
     description: "Institute of One Reproducible Note 001 (publication reference)"
   - type: doi
     value: "10.5281/zenodo.20921268"
-    description: "Zenodo concept DOI (all versions)"
+    description: "Zenodo concept DOI (all versions; resolves to the latest)"
+  - type: doi
+    value: "10.5281/zenodo.22226447"
+    description: "Zenodo version DOI for v0.1.1, the archived release described in IORN-001"
 repository-code: "https://github.com/Institute-of-One/ctp-core"
 references:
   - type: report

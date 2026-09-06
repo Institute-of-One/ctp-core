@@ -139,8 +139,9 @@ If you use this software, please cite it via [`CITATION.cff`](CITATION.cff).
 - Author: Shuji Yamamoto — Institute of One, LISIT Co., Ltd., Tokyo 150-0044, Japan
 - ORCID: [0000-0001-9211-1071](https://orcid.org/0000-0001-9211-1071)
 - Reference: IORN-001
+- Source code: [github.com/Institute-of-One/ctp-core](https://github.com/Institute-of-One/ctp-core)
 - DOI (all versions / concept): [10.5281/zenodo.20921268](https://doi.org/10.5281/zenodo.20921268)
-- DOI (this release, v0.1.1): minted on release; see the Zenodo record for all versions
+- DOI (this release, v0.1.1): [10.5281/zenodo.22226447](https://doi.org/10.5281/zenodo.22226447) — the archived snapshot the IORN-001 manuscript describes
 
 ## License
 
