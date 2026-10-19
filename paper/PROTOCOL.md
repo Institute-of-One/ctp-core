@@ -159,6 +159,148 @@ defects. One of them changes a number in this protocol's own terms and is record
    the same design, within the ±0.04 s standard error of a standard deviation estimated from 200
    repeats, not a change of result.
 
+**2026-10-19 (second entry of the day) — what the cross-check found in the drivers.** The
+expanded snapshot went through Codex × Claude Code, and both reviewers returned fail with
+overlapping findings. Seven were defects in the drivers and five were tests that asserted less
+than they claimed. One of them changes what this protocol says is reported.
+
+7. **No pooled stratum.** `run_reference.py` wrote an `all cases` row combining both sampling
+   intervals — directly under a comment citing amendment 5, which forbids exactly that. The
+   numbers had been quoted. **There is no pooled row now**, and the results file records
+   `"pooling": "none"`. The per-interval results were unchanged by this amendment; amendment 11
+   below then showed that the raw RMSEs quoted here contain our own sampling noise, and is where
+   the numbers to use are given.
+
+   The other six were not visible in any result, and two of them could have been. The figure
+   case was chosen by a gate that counted **case directories** rather than cases that produced
+   a comparison, so fourteen empty reference folders and one usable map would have passed it.
+   `run_clinical.py` took the time axis, the acquisition window and the slice index from the
+   filtered series and applied them to the unfiltered one without checking the two correspond,
+   and the reference maps were ordered by **file name** while the volumes were ordered by
+   **slice location**, with the volume's index used to read the reference. All three were
+   checked against the data before anything was changed: on all 15 cases the two orders agree,
+   the two series agree in shape and slice locations, and the chosen slice is at the same
+   physical position in both. **The published numbers are unaffected** — the data happened to
+   satisfy what the code never checked, which is luck and not a result. Every one of them is
+   now checked, and the slice position is carried in `f1_f2_clinical.json` as `slice_location`
+   so the comparison verifies it rather than assuming it.
+
+   Every driver was re-run after the fixes. `synthetic_f1_f4.json` and `figure_case.json` are
+   byte-identical; `aif_factor.json` and `aif_propagation.json` differ only by the new
+   counts they now record; all 60 clinical records and all 15 reference rows are unchanged.
+
+**2026-10-19 (third entry) — the cross-check on the fixes.** The corrected snapshot went back
+through, and both reviewers returned fail again with seven further findings, all of them real.
+Two change what this protocol can claim.
+
+8. **Saturation is reported per map, not for "the maps".** `CBV` is a ratio of areas and `CBF`
+   comes from a deconvolution; nothing obliges them to reach their ceilings together, and the
+   driver had been treating either one clipping as both saturating. On this phantom they do
+   coincide — **CBV reaches 20 ml/100 g and CBF 150 ml/100 g/min at the same arterial error of
+   3.5**, with CBV at 19.35 and CBF at 147.40 just below it at 3.0 — so the measured claim is
+   unchanged. It is now stated per map, because the agreement is a property of this phantom and
+   not of the algebra.
+9. **The reference comparison gates on the published 15, not on what the clinical file holds.**
+   The documented plumbing check `run_clinical.py --cases 1` rewrites `f1_f2_clinical.json` with
+   one case, and the completeness gate compared the result against that same file — so a stale
+   plumbing run would have silently produced, and published, a one-case result. The gate is now
+   against 15. In the same place, the two strata were selected with `dt < 1.0` and `dt > 1.0`,
+   which assigns no stratum to a case at exactly 1.0 s or at NaN: it would have been counted and
+   then dropped from every summary. Every compared case now lands in exactly one stratum, and a
+   non-finite interval is refused.
+
+   The other five were not visible in a result. A series with an acquisition missing from the
+   middle would have been stacked into a shorter but well-formed volume and handed the full time
+   axis, so acquisition numbers must now be contiguous and are compared between the two series —
+   equal shapes and equal slice locations do not establish temporal correspondence. A non-finite
+   slice position passed the new position check, because NaN compares false against everything.
+   The `ctp_measure` docstring claimed the drivers hold no arithmetic of their own, which is
+   false and is corrected. And every driver rebound `sys.stdout`, which raises when stdout has
+   no underlying buffer, so **no driver's entry point could be called from a test** — which is
+   why none of the previous round's gates was covered end to end. `run_screen.main` and
+   `run_reference.main` are now exercised against a replaced dataset; `run_clinical.main` and
+   `run_aif.main` read DICOM and are still not, which is stated rather than papered over.
+
+**2026-10-19 (fourth entry) — the precision of the clinical measurement, which was overstated.**
+The fourth cross-check round found three defects and, more importantly, took apart the
+justification for the sampling rule. It was wrong in three ways at once and the reviewer was
+right on all of them.
+
+10. **The sampling rule's precision was asserted, not measured, and it was overstated by an
+    order of magnitude.** The driver's docstring justified 500 voxels per hemisphere with "the
+    standard error of a mean whose voxel-level sd is about 1 s is roughly 0.05 s, two orders
+    below the effect being measured". The voxel-level standard deviation this data actually
+    gives is **3.4 to 12.7 s**. The reported quantity is a *difference* of two means, so its
+    standard error is larger than one mean's by √2. And the effect is not "about 5 s" — this
+    protocol's own amendment 3 cites an admitted hemispheric difference of +0.24 s.
+
+    Measured properly, the standard error of each hemispheric difference is **0.23 to 0.79 s**.
+    It is now computed from the two recorded spreads and stored per arm as
+    `delta_standard_error`. On **31 of the 60 arms the difference is smaller than twice its own
+    standard error**, so those arms do not resolve the quantity they report. Raising the sample
+    until they did would need the whole hemisphere, which is the 3.7-hour-per-case measurement
+    that was abandoned at the start; the limit is therefore stated rather than chased.
+
+11. **Part of the agreement with the reference maps was our own sampling noise, and one
+    headline number was entirely that.** The reference maps average every voxel in the slice;
+    we average 500 per side. `run_reference.py` now subtracts our sampling variance in
+    quadrature and reports what is left:
+
+    | sampling interval | method | RMSE vs reference | our sampling | method error |
+    |---|---|---|---|---|
+    | 0.50 s (n=9) | argmax | 0.52 s | 0.37 s | 0.37 s |
+    | 0.50 s (n=9) | fitted | 0.46 s | 0.34 s | 0.32 s |
+    | 2.81 s (n=6) | argmax | 0.96 s | 0.48 s | **0.83 s** |
+    | 2.81 s (n=6) | fitted | 0.32 s | 0.33 s | **0 — within our own precision** |
+
+    (These are the values in `clinical_vs_reference.json` after amendment 12 below; the
+    finite-population correction moved them by under one percent.)
+
+    **The claim this replaces was "at 2.81 s the argmax path is three times worse than the
+    fitted path".** That ratio compared a number that is mostly method error against one that
+    is entirely sampling noise. What the data support is stronger and differently shaped: at
+    2.81 s the fitted path agrees with the reference *to within the precision of our own
+    measurement*, while the argmax path disagrees by 0.83 s, which our measurement resolves. At
+    0.50 s the two are 0.37 s and 0.32 s — indistinguishable, and the fit buys nothing. The
+    conclusion a reader acts on is unchanged in direction and must be stated this way.
+
+The three code defects: `tissue_mask` admitted an infinite sample as evidence that a bolus had
+arrived, so one such voxel could have entered a hemispheric mean or decided which slice to
+measure; `run_aif`'s population gate accepted an area ratio of zero as finite and therefore
+usable, though a ratio of zero means one of the two curves is absent; and the screen's
+completeness gate saw a missing case and an empty reference folder but not a folder holding
+*some* of its slices — the expected count is now derived from the acquisition folder and the
+time vector, which needs no pixel data.
+
+**2026-10-19 (fifth entry) — the sampling variance, corrected properly.** Four findings, and
+one of them is the statistics rather than the plumbing.
+
+12. **The draw is without replacement, so the variance of each mean carries `(1 − n/N)`.** The
+    standard error introduced by amendment 10 omitted the finite-population correction. With 500
+    voxels drawn from a hemisphere of about 35,000 the factor is **0.986** — under one percent on
+    the standard error — so **no published number changes**. It is corrected anyway, because the
+    quantity is subtracted from the disagreement with the reference maps, and subtracting an
+    inflated variance erases genuine disagreement. The populations are now recorded per arm as
+    `left_population` and `right_population`. One approximation remains and is stated in the
+    function rather than buried: on the fitted path the admitted values are those whose fit
+    passed the validity rule, which is not a random subset of the drawn voxels, so `n` is the
+    admitted count there.
+
+The other three were process, not measurement. The screen's new completeness check **failed
+open** — when the expected slice count could not be derived it was skipped, although that is
+itself the partial-extraction situation the check was added for; not knowing is now an exclusion,
+and each way of failing says which it was. A test still asserted the precision claim amendment 10
+withdrew, so it was deleted rather than adjusted, and the injection that used it as its oracle
+now names the test that pins the frozen count. And the documented plumbing check
+`run_clinical.py --cases 1` **still overwrote the published 15-case result** — the earlier fix had
+only stopped `run_reference.py` from consuming a one-case file, not stopped the file being
+destroyed; a partial run now writes `f1_f2_clinical.partial.json`.
+
+One limitation is recorded rather than fixed: a partly extracted acquisition folder whose file
+count happens to divide by the number of time points still yields a wrong expected slice count.
+Catching that would mean reading DICOM headers in the screen, which is what deriving the count
+from file names was chosen to avoid.
+
 ---
 
 ## 8. Where the code is, and which file holds which number
@@ -177,8 +319,15 @@ version control; they are in the repository now.
 | `run_clinical.py` | `f1_f2_clinical.json` | F1 × F2 on the clinical arm |
 | `run_reference.py` | `clinical_vs_reference.json` | F1 against the dataset's own reference maps |
 
-`unitobrain.py` is the only module that knows the dataset's layout; `ctp_measure.py` holds the
-measurement logic, tested in `test_ctp_measure.py`. The drivers' screening rules, sampling rule
-and design constants are tested in `test_drivers.py`, and `prove_driver_gates.py` injects
-fourteen defects and checks that the test which claims to catch each one is the one that fails.
-The dataset itself is not redistributed: set `UNITOBRAIN_ROOT` to point at it.
+`unitobrain.py` is the only module that knows the dataset's layout, `ctp_measure.py` holds the
+measurement logic, tested in `test_ctp_measure.py`, and `driver_io.py` holds the one line of
+console setup the drivers share. The drivers' screening rules, sampling rule
+and design constants are tested in `test_drivers.py`, and `prove_driver_gates.py` applies a known
+defect to a copy of the directory and requires the test named for it to go red — distinguishing a
+failed assertion from an escaped exception, and refusing a mutation whose expected test name is
+ambiguous. Run both; the counts are not written down here, because a count in prose goes stale
+the moment the thing it describes changes, and one in this repository already did.
+
+The dataset itself is not redistributed and there is no default path: set `UNITOBRAIN_ROOT`.
+CI runs the measurement suite and the injection proof on every push, because a suite that only
+ever runs on one laptop is not a gate.

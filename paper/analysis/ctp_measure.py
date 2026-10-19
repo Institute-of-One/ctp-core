@@ -1,8 +1,15 @@
 """The measurement logic behind the manuscript, as functions that can be tested.
 
-Everything the paper reports is computed here. The drivers in this directory read data and call
-these functions; they hold no arithmetic of their own, so what the tests cover is what the
-manuscript quotes.
+The decisions the paper rests on are implemented here, as functions a test can call: the
+validity rule, the quantisation floor, the positive-area integral, the CBV ratio and the
+hemispheric split.
+
+**The drivers are not free of arithmetic, and an earlier version of this docstring claimed they
+were.** A reviewer corrected it. ``run_aif`` forms the area ratio and its median and range,
+``run_reference`` forms each stratum's bias, standard deviation and RMSE, and ``run_clinical``
+forms the hemispheric means, medians and their difference. Those are ordinary aggregations over
+the values these functions return, and they are summarised rather than individually tested; what
+this module's tests cover is the part where a wrong answer would not look wrong.
 
 Three of these encode decisions that were made after looking at data and are recorded as
 amendments in ``paper/PROTOCOL.md``:

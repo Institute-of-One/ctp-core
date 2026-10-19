@@ -1,4 +1,6 @@
 {
+  "n_cases": 15,
+  "n_expected": 15,
   "cases": [
     {
       "case": "MOL-001",

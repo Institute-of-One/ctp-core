@@ -70,14 +70,23 @@ not after.
 - ~~The clinical re-measurement with the validity rule.~~ **Done, 2026-10-19**, from the
   drivers now in `paper/analysis/`. 15 cases, 60 records, no exclusions.
 - ~~Whether the quantisation floor is visible between the two sampling protocols.~~ **Yes, and
-  it is the sharpest result in the paper.** Against the dataset's own reference maps the fit-free
-  path gives RMSE 0.96 s at 2.81 s sampling and 0.52 s at 0.50 s, while the fitted path gives
-  0.32 s and 0.46 s. At the coarse interval the fit-free error sits at the predicted floor of
-  0.81 s and the fitted path goes **below** it — which is only possible because a fitted peak is
-  not confined to the sampling grid. At the fine interval the floor is 0.14 s, both paths are
-  far above it, and they are indistinguishable: there the floor is not the limiting term, so the
-  fit buys nothing. The honest statement is therefore conditional, and it tells a reader which
-  path to use at which sampling interval rather than which is better.
+  it is the sharpest result in the paper** — but not in the form first written down here. The
+  raw RMSEs against the dataset's own reference maps contain our own sampling noise, because we
+  average 500 voxels per hemisphere where the reference averages the whole slice. With that
+  variance removed (amendment 11 of `PROTOCOL.md`):
+
+  | sampling interval | argmax | fitted |
+  |---|---|---|
+  | 0.50 s (n=9) | 0.37 s | 0.32 s — indistinguishable |
+  | 2.81 s (n=6) | **0.83 s** | **0 — within our own precision** |
+
+  At 2.81 s the fitted path agrees with the reference to within the precision of our own
+  measurement, while the argmax path disagrees by 0.83 s, close to the predicted quantisation
+  floor of 0.81 s and well outside our noise. At 0.50 s the floor is 0.14 s, both paths sit far
+  above it, and the fit buys nothing. **The earlier phrasing here — "argmax is three times
+  worse at 2.81 s" — compared a number that is mostly method error with one that is entirely
+  sampling noise, and must not be used.** The statement is conditional, and it tells a reader
+  which path to use at which sampling interval rather than which method is better.
 - Reference list: assembled and every DOI resolved before a word of the Discussion is written.
 
 ## 7. Where the numbers come from

@@ -12,7 +12,6 @@ checked the curves were gone and the ratio could not be recomputed.
 
 from __future__ import annotations
 
-import io
 import json
 import os
 import sys
@@ -23,16 +22,48 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..")))
 
+import driver_io  # noqa: E402
 import unitobrain  # noqa: E402
-from ctp_core.aif_detection import AIFDetector  # noqa: E402
 from ctp_measure import curve_area  # noqa: E402
 
 RESULTS = os.path.abspath(os.path.join(HERE, "..", "results"))
 
+#: The published test set. The same gate as run_screen.py, for the same reason.
+EXPECTED_CASES = 15
+
+
+def usable_ratios(rows) -> np.ndarray:
+    """The area ratios that can carry the reported median.
+
+    Finite is not enough. A reviewer pointed out that a shipped area of zero against a positive
+    automatic area gives a ratio of 0.0, which is finite and would have passed -- and a ratio of
+    zero is not a measurement of anything, it is a case where one of the two curves is absent.
+    The ratio is a ratio of positive areas, so it must be positive.
+    """
+    return np.array([r["area_ratio"] for r in rows
+                     if np.isfinite(r["area_ratio"]) and r["area_ratio"] > 0.0])
+
+
+def population_complaint(n_directories: int, n_measured: int, n_usable: int) -> str | None:
+    """Why the reported median cannot be trusted, or ``None`` if it can.
+
+    The manuscript quotes the median as being over 15 cases, so the number behind it is checked
+    rather than described: excluded cases and unusable ratios would otherwise shrink it in
+    silence.
+    """
+    if n_directories == n_measured == n_usable == EXPECTED_CASES:
+        return None
+    return (f"{n_directories} case directories, {n_measured} measured, {n_usable} with a "
+            f"usable area ratio; all three must be {EXPECTED_CASES}. The exclusions printed "
+            "above are the reason; a median over whatever survived is not a result.")
+
 
 def main() -> int:
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                                  errors="replace", line_buffering=True)
+    # Imported here rather than at the top so that this module's gate functions can be tested
+    # in a snapshot that holds only these files.
+    from ctp_core.aif_detection import AIFDetector
+
+    driver_io.use_utf8_stdout()
     names = unitobrain.cases()
     print(f"{len(names)} cases under {unitobrain.root()}\n")
 
@@ -69,10 +100,11 @@ def main() -> int:
             "shipped_curve": [float(v) for v in acquisition.shipped_aif],
         })
 
-    if not rows:
-        print("no cases measured")
+    ratios = usable_ratios(rows)
+    complaint = population_complaint(len(names), len(rows), ratios.size)
+    if complaint:
+        print("\nABORT: " + complaint)
         return 1
-    ratios = np.array([r["area_ratio"] for r in rows if np.isfinite(r["area_ratio"])])
     print(f"\narterial area ratio (shipped / automatic) over {ratios.size} cases: "
           f"median {np.median(ratios):.2f}, range {ratios.min():.2f} to {ratios.max():.2f}")
     print("CBV and CBF are divided by this area, so they are inflated by the same factor.")
@@ -80,7 +112,8 @@ def main() -> int:
     os.makedirs(RESULTS, exist_ok=True)
     path = os.path.join(RESULTS, "aif_factor.json")
     with open(path, "w", encoding="utf-8") as handle:
-        json.dump({"cases": rows,
+        json.dump({"n_cases": len(rows), "n_expected": EXPECTED_CASES,
+                   "cases": rows,
                    "median_area_ratio": float(np.median(ratios)),
                    "min_area_ratio": float(ratios.min()),
                    "max_area_ratio": float(ratios.max())},

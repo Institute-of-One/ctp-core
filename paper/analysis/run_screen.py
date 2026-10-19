@@ -16,7 +16,6 @@ drag a mean.
 from __future__ import annotations
 
 import glob
-import io
 import json
 import os
 import sys
@@ -26,6 +25,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import driver_io  # noqa: E402
 import unitobrain  # noqa: E402
 from ctp_measure import hemispheres  # noqa: E402
 
@@ -41,6 +41,35 @@ MIN_VOXELS = 500
 EXPECTED_CASES = 15
 
 
+def expected_slices(case: str) -> int | None:
+    """How many slices this case's reference series should hold, or ``None`` if unknowable.
+
+    The acquisition folder holds one file per slice per acquisition, and the time vector beside
+    the maps gives the number of acquisitions, so the slice count follows by division without
+    opening an image. ``None`` means it could not be derived, and the caller treats that as an
+    exclusion: a case whose own files do not agree on how many slices it has is not a case to
+    rank. Each way of failing is named, because "could not be derived" is not a diagnosis.
+    """
+    base = unitobrain.root()
+    files = len(glob.glob(os.path.join(base, case + unitobrain.FILTERED, "*.dcm")))
+    text = os.path.join(base, case + unitobrain.MAPS + ".txt")
+    if not files:
+        print(f"{case}: WARNING - no acquisition files under "
+              f"{case + unitobrain.FILTERED}; the expected slice count cannot be derived")
+        return None
+    if not os.path.isfile(text):
+        print(f"{case}: WARNING - no {case + unitobrain.MAPS}.txt, so the number of "
+              "acquisitions is unknown and the expected slice count cannot be derived")
+        return None
+    with open(text, encoding="utf-8") as handle:
+        n_times = len(handle.readline().split())
+    if not n_times or files % n_times:
+        print(f"{case}: WARNING - {files} acquisition files do not divide by {n_times} "
+              "time points; the expected slice count cannot be derived")
+        return None
+    return files // n_times
+
+
 def slice_asymmetry(ttp: np.ndarray) -> float | None:
     mask = (ttp > TTP_MIN) & (ttp < TTP_MAX)
     if mask.sum() < 2 * MIN_VOXELS:
@@ -52,8 +81,7 @@ def slice_asymmetry(ttp: np.ndarray) -> float | None:
 
 
 def main() -> int:
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                                  errors="replace", line_buffering=True)
+    driver_io.use_utf8_stdout()
     names = unitobrain.cases()
     rows = []
     for case in names:
@@ -68,9 +96,26 @@ def main() -> int:
         if n_files == 0:
             print(f"{case}: EXCLUDED - NLR_TTP folder is empty (extraction incomplete?)")
             continue
+        # A folder with some of its slices is the case the gate below cannot see: the ranking
+        # would be taken from whatever arrived. A reviewer asked for it, and the count can be
+        # derived without reading a single pixel -- the acquisition folder holds one file per
+        # slice per time point, and the number of time points is the length of the time vector
+        # the dataset ships beside the maps.
+        expected = expected_slices(case)
+        if expected is None:
+            # Failing open here would defeat the gate: a reviewer pointed out that a case whose
+            # expected count cannot be derived was waved through, which is the one situation
+            # where the data most obviously do not hang together. Not knowing is an exclusion.
+            print(f"{case}: EXCLUDED - the expected number of reference slices could not be "
+                  "derived (see the warning above)")
+            continue
+        if n_files != expected:
+            print(f"{case}: EXCLUDED - {n_files} reference slices of {expected} "
+                  "(extraction incomplete?)")
+            continue
         series = unitobrain.reference_map(case, "NLR_TTP")
         per_slice = []
-        for index, ttp in enumerate(series):
+        for index, ttp in enumerate(series.images):
             value = slice_asymmetry(ttp)
             if value is not None:
                 per_slice.append((value, index))
@@ -102,6 +147,19 @@ def main() -> int:
         return 1
     if not rows:
         print("\nABORT: no case was admitted, so no figure case can be chosen.")
+        return 1
+    # Counting case directories is not the same as counting cases that produced a comparison.
+    # A review found that 14 empty reference folders and one usable map passed the gate above
+    # and still chose a figure case -- the exact failure the comment further up describes from
+    # the first run of this screen, which this gate was supposed to prevent. An exclusion here
+    # has to be a decision, not a side effect.
+    missing = sorted(set(names) - {row["case"] for row in rows})
+    if missing:
+        print(f"\nABORT: {len(rows)} of {len(names)} cases produced a comparison. These did "
+              f"not: {', '.join(missing)}. The frozen rule chooses among admitted cases and "
+              "requires every exclusion to be stated with its reason (PROTOCOL.md section 5); "
+              "re-run once the reasons above are understood, or record them as exclusions in "
+              "the protocol first.")
         return 1
 
     chosen = rows[0]

@@ -18,7 +18,6 @@ come, so the arrival is jittered uniformly across one sampling interval. The int
 
 from __future__ import annotations
 
-import io
 import json
 import os
 import sys
@@ -29,6 +28,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..")))
 
+import driver_io  # noqa: E402
 from ctp_measure import fitted_peak_time, quantisation_floor, sampled_peak_time  # noqa: E402
 
 RESULTS = os.path.abspath(os.path.join(HERE, "..", "results"))
@@ -40,14 +40,32 @@ DURATION = 50.0
 SEED = 20261016
 
 
+#: Where the bolus arrives before the jitter is added, in seconds.
+NOMINAL_ARRIVAL = 8.0
+
+
+def arrival_time(rng, dt: float) -> float:
+    """Bolus arrival, jittered uniformly across one sampling interval.
+
+    This is the design point the whole synthetic arm rests on, so it is a function and it is
+    tested. If the bolus always arrived on a sampling instant, the argmax of the sampled curve
+    would be unbiased by construction, the quantisation would vanish, and the comparison with
+    the fitted path would be vacuous. A scanner does not know when the bolus will come. A
+    review pointed out that this line had no test and that removing the jitter left every test
+    green.
+    """
+    if not dt > 0:
+        raise ValueError(f"dt must be positive, got {dt}")
+    return NOMINAL_ARRIVAL + float(rng.uniform(0.0, dt))
+
+
 def main() -> int:
     # ctp_core is imported here rather than at the top so that the design constants can be
     # tested in a snapshot that holds only these files.
     from ctp_core.gamma_fit import fit_gamma_variate
     from ctp_core.synthetic import generate_synthetic_tac
 
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                                  errors="replace", line_buffering=True)
+    driver_io.use_utf8_stdout()
     rng = np.random.default_rng(SEED)
     records = []
 
@@ -61,7 +79,7 @@ def main() -> int:
             errors: dict[str, list[float]] = {"sampled": [], "fitted": []}
             rejected = 0
             for _ in range(N_REPEATS):
-                arrival = 8.0 + float(rng.uniform(0.0, dt))
+                arrival = arrival_time(rng, dt)
                 tac = generate_synthetic_tac(
                     amplitude=60.0, t0=arrival, alpha=3.0, beta=2.0,
                     n_time_points=n_points, dt=dt, snr=snr,

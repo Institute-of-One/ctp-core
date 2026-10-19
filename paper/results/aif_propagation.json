@@ -1,6 +1,10 @@
 {
   "cbv_clip": 20.0,
   "cbf_clip": 150.0,
+  "first_clipped_ratio": {
+    "cbv": 3.5,
+    "cbf": 3.5
+  },
   "points": [
     {
       "aif_area_ratio": 1.0,
@@ -8,7 +12,8 @@
       "cbf": 49.1340446472168,
       "cbv_inflation": 1.0,
       "cbf_inflation": 1.0,
-      "clipped": false
+      "cbv_clipped": false,
+      "cbf_clipped": false
     },
     {
       "aif_area_ratio": 1.5,
@@ -16,7 +21,8 @@
       "cbf": 73.70106506347656,
       "cbv_inflation": 1.5000000369692628,
       "cbf_inflation": 1.499999961180712,
-      "clipped": false
+      "cbv_clipped": false,
+      "cbf_clipped": false
     },
     {
       "aif_area_ratio": 2.0,
@@ -24,7 +30,8 @@
       "cbf": 98.2680892944336,
       "cbv_inflation": 2.0,
       "cbf_inflation": 2.0,
-      "clipped": false
+      "cbv_clipped": false,
+      "cbf_clipped": false
     },
     {
       "aif_area_ratio": 2.5,
@@ -32,7 +39,8 @@
       "cbf": 122.83511352539062,
       "cbv_inflation": 2.4999999630307372,
       "cbf_inflation": 2.5000000388192882,
-      "clipped": false
+      "cbv_clipped": false,
+      "cbf_clipped": false
     },
     {
       "aif_area_ratio": 3.0,
@@ -40,7 +48,8 @@
       "cbf": 147.40213012695312,
       "cbv_inflation": 3.0000000739385255,
       "cbf_inflation": 2.999999922361424,
-      "clipped": false
+      "cbv_clipped": false,
+      "cbf_clipped": false
     },
     {
       "aif_area_ratio": 3.5,
@@ -48,7 +57,8 @@
       "cbf": 150.0,
       "cbv_inflation": 3.1012065362543884,
       "cbf_inflation": 3.052873034919114,
-      "clipped": true
+      "cbv_clipped": true,
+      "cbf_clipped": true
     },
     {
       "aif_area_ratio": 4.0,
@@ -56,7 +66,8 @@
       "cbf": 150.0,
       "cbv_inflation": 3.1012065362543884,
       "cbf_inflation": 3.052873034919114,
-      "clipped": true
+      "cbv_clipped": true,
+      "cbf_clipped": true
     },
     {
       "aif_area_ratio": 6.97,
@@ -64,7 +75,8 @@
       "cbf": 150.0,
       "cbv_inflation": 3.1012065362543884,
       "cbf_inflation": 3.052873034919114,
-      "clipped": true
+      "cbv_clipped": true,
+      "cbf_clipped": true
     },
     {
       "aif_area_ratio": 10.47,
@@ -72,7 +84,8 @@
       "cbf": 150.0,
       "cbv_inflation": 3.1012065362543884,
       "cbf_inflation": 3.052873034919114,
-      "clipped": true
+      "cbv_clipped": true,
+      "cbf_clipped": true
     }
   ]
 }
