@@ -1,0 +1,155 @@
+{
+  "rule": "largest absolute left-right hemispheric median TTP difference in the dataset's own NLR_TTP maps, among admitted cases",
+  "ttp_window": [
+    0.5,
+    20.0
+  ],
+  "min_voxels_per_side": 500,
+  "n_cases": 15,
+  "chosen": {
+    "case": "MOL-001",
+    "signed_delta": 6.43,
+    "abs_delta": 6.43,
+    "slice": 15,
+    "median_abs_delta": 4.3500000000000005,
+    "n_slices_compared": 16,
+    "n_slices_present": 16
+  },
+  "ranking": [
+    {
+      "case": "MOL-001",
+      "signed_delta": 6.43,
+      "abs_delta": 6.43,
+      "slice": 15,
+      "median_abs_delta": 4.3500000000000005,
+      "n_slices_compared": 16,
+      "n_slices_present": 16
+    },
+    {
+      "case": "MOL-141",
+      "signed_delta": 4.74,
+      "abs_delta": 4.74,
+      "slice": 3,
+      "median_abs_delta": 1.695,
+      "n_slices_compared": 16,
+      "n_slices_present": 16
+    },
+    {
+      "case": "MOL-165",
+      "signed_delta": 2.8,
+      "abs_delta": 2.8,
+      "slice": 2,
+      "median_abs_delta": 2.4499999999999997,
+      "n_slices_compared": 8,
+      "n_slices_present": 8
+    },
+    {
+      "case": "MOL-175",
+      "signed_delta": -2.7899999999999996,
+      "abs_delta": 2.7899999999999996,
+      "slice": 6,
+      "median_abs_delta": 2.48,
+      "n_slices_compared": 8,
+      "n_slices_present": 8
+    },
+    {
+      "case": "MOL-163",
+      "signed_delta": 2.4800000000000004,
+      "abs_delta": 2.4800000000000004,
+      "slice": 7,
+      "median_abs_delta": 1.46,
+      "n_slices_compared": 8,
+      "n_slices_present": 8
+    },
+    {
+      "case": "MOL-164",
+      "signed_delta": 1.9650000000000003,
+      "abs_delta": 1.9650000000000003,
+      "slice": 5,
+      "median_abs_delta": 1.6300000000000001,
+      "n_slices_compared": 8,
+      "n_slices_present": 8
+    },
+    {
+      "case": "MOL-003",
+      "signed_delta": 1.95,
+      "abs_delta": 1.95,
+      "slice": 1,
+      "median_abs_delta": 0.9175,
+      "n_slices_compared": 8,
+      "n_slices_present": 8
+    },
+    {
+      "case": "MOL-004",
+      "signed_delta": -1.9400000000000004,
+      "abs_delta": 1.9400000000000004,
+      "slice": 7,
+      "median_abs_delta": 0.45500000000000007,
+      "n_slices_compared": 8,
+      "n_slices_present": 8
+    },
+    {
+      "case": "MOL-002",
+      "signed_delta": -1.0299999999999998,
+      "abs_delta": 1.0299999999999998,
+      "slice": 1,
+      "median_abs_delta": 0.2899999999999998,
+      "n_slices_compared": 8,
+      "n_slices_present": 8
+    },
+    {
+      "case": "MOL-190",
+      "signed_delta": 0.5799999999999998,
+      "abs_delta": 0.5799999999999998,
+      "slice": 15,
+      "median_abs_delta": 0.25500000000000034,
+      "n_slices_compared": 16,
+      "n_slices_present": 16
+    },
+    {
+      "case": "MOL-059",
+      "signed_delta": -0.5500000000000003,
+      "abs_delta": 0.5500000000000003,
+      "slice": 1,
+      "median_abs_delta": 0.3400000000000001,
+      "n_slices_compared": 8,
+      "n_slices_present": 8
+    },
+    {
+      "case": "MOL-142",
+      "signed_delta": 0.54,
+      "abs_delta": 0.54,
+      "slice": 1,
+      "median_abs_delta": 0.15500000000000025,
+      "n_slices_compared": 16,
+      "n_slices_present": 16
+    },
+    {
+      "case": "MOL-260",
+      "signed_delta": -0.48999999999999977,
+      "abs_delta": 0.48999999999999977,
+      "slice": 10,
+      "median_abs_delta": 0.28000000000000025,
+      "n_slices_compared": 16,
+      "n_slices_present": 16
+    },
+    {
+      "case": "MOL-005",
+      "signed_delta": 0.26000000000000023,
+      "abs_delta": 0.26000000000000023,
+      "slice": 2,
+      "median_abs_delta": 0.17500000000000004,
+      "n_slices_compared": 8,
+      "n_slices_present": 8
+    },
+    {
+      "case": "MOL-207",
+      "signed_delta": -0.22999999999999998,
+      "abs_delta": 0.22999999999999998,
+      "slice": 6,
+      "median_abs_delta": 0.14000000000000012,
+      "n_slices_compared": 16,
+      "n_slices_present": 16
+    }
+  ]
+}

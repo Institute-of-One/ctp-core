@@ -1,0 +1,49 @@
+{
+  "name": "ctp-core-iorn-001-measurement",
+  "checked_at": "2026-10-19T05:25:38.141501+00:00",
+  "summary_path": "C:\\Users\\YamamotoShuji\\Documents\\Codex\\SharedTools\\AI-Check\\runs\\20261019T052438Z-cd66fbe0\\summary.json",
+  "snapshot_sha256": "ddf11b2b910b21e2cfb8afd38953e4aa96ea92d96313e41817c4e469c146afbf",
+  "inputs": {
+    "paper/analysis/ctp_measure.py": "15a7f5abb962c24aff924ab92940dde2a36f9919431039f3ff8b526b151ebefa",
+    "paper/analysis/test_ctp_measure.py": "13611d758da9be4f9db621239f700fe1868eadf1aea94bb9aceb0d60bd05c6c2"
+  },
+  "verdict": "FAIL",
+  "verdict_reason": "The framework's own verdict is FAIL because its executable-test stage could not run. Both independent reviews of this same snapshot returned pass.",
+  "reviews": {
+    "codex": "pass",
+    "claude": "pass"
+  },
+  "executable_test": {
+    "ran": false,
+    "exit_code": 2,
+    "tests_passed": 0,
+    "blocker": "ModuleNotFoundError: No module named 'numpy'",
+    "cause": "The shared adapter runs the suite under python -I, which by design ignores user site-packages. NumPy 2.5.1 is installed only in the user site (C:\\Users\\YamamotoShuji\\AppData\\Roaming\\Python\\Python314\\site-packages), so no NumPy-dependent code can be executed by v1. This is a limitation of the shared framework, not a defect in this project.",
+    "compensating_evidence": "The same 37 tests were run locally against the same file contents: `python -m unittest discover -s .` from paper/analysis, 37 passed, exit 0. Their SHA-256 values are recorded above, so the version tested locally is the version reviewed."
+  },
+  "unsupported_by_v1": [
+    "Executable tests for any code importing NumPy or SciPy, because the adapter runs under python -I and those live in the user site-packages.",
+    "The ctp_core package's own tests, which are pytest-style bare functions; v1 accepts standard unittest only. They are run separately with pytest (111 passed on 2026-10-19) and are outside this manifest's scope.",
+    "Figure rendering, DICOM geometry and Hounsfield-unit checks, and any visual acceptance. These remain project-specific work and are not covered here."
+  ],
+  "history": [
+    "Six runs on successively corrected versions. The reviews found three implementation defects and four tests that asserted less than the requirement they claimed to cover; all were fixed, and the suite grew from 21 to 37 tests.",
+    "Implementation defects found: curve_area clipped samples before integrating, overstating the positive area wherever the curve crosses zero between samples; hemispheres used Python round(), whose banker's rounding split half of all even-width symmetric masks one column off balance; the enforced input domain bounded areas above but not below, so a vanishingly small arterial area passed and the result overflowed or was silently lost.",
+    "One review claim was wrong and was not acted on: a reviewer gave 2.0 as the positive area of [0,2,-2,0] over times [0,1,2,3]. Recomputing by hand gives 1.5 (trapezoid 1.0, then a triangle of 0.5 above the zero crossing at t=1.5, then nothing). The implementation was right and the test expectation was corrected instead. Agreement between the two reviewers was not treated as proof at any point."
+  ],
+  "since_this_run": {
+    "date": "2026-10-19",
+    "what_changed": "The six drivers that produce every file in paper/results/ were moved out of a scratch directory into paper/analysis/, together with unitobrain.py, which is now the only module that knows the dataset's layout. The drivers import ctp_measure.py instead of repeating its logic. check.json has been extended from 2 files to 11 (87 KB of a 240 KB budget) and its requirements section now states what each driver must hold.",
+    "closes_open_items": [
+      "The drivers are in the repository and in the manifest, so they can be reviewed.",
+      "run_aif.py now saves times, auto_curve and shipped_curve per case, so the arterial area ratio can be recomputed from stored data."
+    ],
+    "reproduction": "Every driver was re-run from the repository after the hemispheres() correction, and the pre-correction screen was run beside the corrected one. The 15-case figure-case ranking agrees line for line (MOL-001, +6.43 s, slice 15); the arterial area ratios are unchanged (median 6.97, range 3.56 to 10.47); all 60 records of f1_f2_clinical.json and all 15 rows of clinical_vs_reference.json are identical to the pre-correction values. The synthetic arm's standard deviation at dt 2.81 s came out at 0.821 s against the predicted 0.811 s, where the earlier draw of the same design gave 0.871 s; the standard error of a standard deviation estimated from 200 repeats is about 0.04 s, so this is a different draw and not a different result.",
+    "new_tests": "test_drivers.py adds 28 tests over the screening rule, the sampling rule, the design constants and the dataset accessors, for 65 in the analysis suite. prove_driver_gates.py injects 14 defects and requires that the test which claims to catch each one is the test that fails. Two tests did not survive that: the background-zero and vessel-exclusion tests painted a contaminated patch too small to move a median, so each was caught only by the cross-module window invariant and not by itself. Both were rewritten; the proof now reports 14 of 14.",
+    "pending": "A cross-check run on the expanded 11-file snapshot has not been made. It sends file contents to OpenAI and Anthropic and needs explicit approval first. The NumPy limitation above will apply again unless NumPy is installed where python -I can see it."
+  },
+  "open_items": [
+    "The expanded snapshot (the drivers and their tests) has not yet been through the cross-check; the reviews recorded above cover ctp_measure.py and its tests only.",
+    "Re-running the cross-check will need either the same NumPy limitation recorded again, or NumPy installed where python -I can see it."
+  ]
+}
