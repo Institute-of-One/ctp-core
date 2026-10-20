@@ -6,6 +6,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-20
+
+The release the British Journal of Radiology submission describes. Nothing in `ctp_core/`
+changed: this adds the measurement made *with* it, and the code that made it.
+
+### Added
+- **`paper/analysis/` — every number in the manuscript, and the code that produced it.**
+  `ctp_measure.py` holds the measurement logic (the validity rule, the quantisation floor,
+  the positive-area integral, the CBV ratio, the hemispheric split); `unitobrain.py` is the
+  only module that knows the dataset's layout; six drivers write the files in
+  `paper/results/`. They were in a scratch directory while the measurements were designed,
+  which put them outside version control and outside review.
+- **`paper/PROTOCOL.md` — the design, frozen before implementation, with every amendment
+  dated and reasoned.** Thirteen of them, including the two that changed what is reported:
+  the precision of the clinical sampling rule was overstated by an order of magnitude, and
+  part of the agreement with the reference maps was the measurement's own sampling noise.
+- **`paper/results/` — the measured values as data files**, which the figures and the
+  manuscript are generated from, so no number in the paper is typed by hand.
+- `paper/make_figures.py`, `paper/build_manuscript.py`, `paper/references.py` and the
+  submission assembly, with their checkers: `check_manuscript.py`, `check_references.py`
+  and two scripts that prove those checkers by breaking a manuscript seventeen ways and a
+  reference list six, requiring each to be rejected.
+- `paper/verify_release.py` — exports the tree as the archive will ship it, installs the
+  declared dependencies into an empty virtual environment, and runs the paths the data
+  availability statement promises. This is the check whose absence let v0.1.0 be cited by
+  DOI while it no longer ran.
+- `.ai-check/` — six rounds of independent review by two models, their findings, and what
+  was done about each. Thirty-one defects; the measured values did not move after the third
+  round.
+- Two more CI jobs: the measurement suite with its injection proof, and the manuscript
+  pipeline with its own.
+
+### Changed
+- `tests/test_release_metadata.py` now also requires the four files that carry the version
+  to agree, refuses a top-level `doi` in `.zenodo.json`, and recognises the window between
+  bumping a version and the DOI being minted instead of either failing or passing blindly.
+
+### Fixed
+- The data availability statement pointed at "the digital object identifier given on the
+  title page", and the title page gave none.
+
 ## [0.1.1] - 2026-09-01
 
 ### Fixed
