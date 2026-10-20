@@ -161,6 +161,60 @@ def check_citations(document: str) -> list[str]:
     return problems
 
 
+def check_abstract_rules(document: str) -> list[str]:
+    """The journal's two rules for the abstract beyond its length.
+
+    Read off its author guidelines on 2026-10-20: the abstract must carry the five subheadings,
+    and must contain no reference citation and no abbreviation. "CT" is left alone -- it is the
+    subject of the journal and is not expanded anywhere in it -- but anything else in capitals
+    is flagged, because an abbreviation in an abstract is a returned manuscript.
+    """
+    problems = []
+    abstract = document.split("## Abstract")[1].split("\n## ")[0]
+    for heading in ("Objectives", "Methods", "Results", "Conclusions", "Advances in knowledge"):
+        if f"**{heading}.**" not in abstract:
+            problems.append(f"the abstract has no {heading} subheading")
+    if re.search(r"\[\d", abstract):
+        problems.append("the abstract contains a reference citation, which is not allowed")
+    allowed = {"CT"}
+    for token in set(re.findall(r"\b[A-Z]{2,}\b", abstract)) - allowed:
+        problems.append(f"the abstract contains the abbreviation {token!r}")
+    return problems
+
+
+def check_title_page_items(title_page: str) -> list[str]:
+    """Everything the journal asks a separate title page to carry."""
+    wanted = {
+        "the article type": r"Article type:",
+        "an ORCID": r"ORCID \d{4}-\d{4}-\d{4}-\d{3}[\dX]",
+        "a corresponding author with an email": r"Corresponding author:.*@",
+        "a competing interests statement": r"(?mi)^## Competing interests",
+        "a funding statement": r"(?mi)^## Funding",
+        "acknowledgements": r"(?mi)^## Acknowledgements",
+        "a copy of the abstract": r"(?mi)^## Abstract",
+    }
+    return [f"the title page is missing {name}" for name, pattern in wanted.items()
+            if not re.search(pattern, title_page, re.S)]
+
+
+def check_figure_formats(document: str) -> list[str]:
+    """The journal prefers vector files for diagrams and graphs, raster for images."""
+    path = os.path.join(FIGURES, "captions.json")
+    if not os.path.isfile(path):
+        return ["no captions.json: run make_figures.py"]
+    with open(path, encoding="utf-8") as handle:
+        figures = json.load(handle)
+    problems = []
+    for number, figure in figures.items():
+        submit = figure.get("submit")
+        if not submit:
+            problems.append(f"figure {number} does not say which file to submit")
+            continue
+        if not os.path.isfile(os.path.join(FIGURES, submit)):
+            problems.append(f"figure {number}'s file for submission, {submit}, is not on disk")
+    return problems
+
+
 def check_affiliation(title_page: str) -> list[str]:
     import build_manuscript as build
 
@@ -209,6 +263,9 @@ def main() -> int:
         "citations and references": check_citations(document),
         "affiliation": check_affiliation(title_page),
         "required statements": check_statements(document),
+        "abstract rules": check_abstract_rules(document),
+        "title page items": check_title_page_items(title_page),
+        "figure formats": check_figure_formats(document),
     }
 
     failed = 0

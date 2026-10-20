@@ -73,15 +73,32 @@ def load(name: str):
         return json.load(handle)
 
 
-def save(figure, number: int, slug: str, *, dpi: int, caption: str, alt: str) -> dict:
+def save(figure, number: int, slug: str, *, dpi: int, caption: str, alt: str,
+         vector: bool = False) -> dict:
+    """Write the figure, and say which file the journal should be sent.
+
+    The journal prefers a vector format for diagrams and graphs and a raster one for images,
+    so a figure that is drawn rather than photographed is written as a PDF *and* as a PNG: the
+    PDF is what is uploaded, the PNG is what a human looks at here. For a figure made of
+    images -- the clinical maps -- a vector file would be a raster image wrapped in a PDF and
+    larger for nothing, so only the PNG is written, at the resolution the journal asks.
+    """
     os.makedirs(FIGURES, exist_ok=True)
-    name = f"figure_{number}_{slug}.png"
-    path = os.path.join(FIGURES, name)
-    figure.savefig(path, dpi=dpi)
+    stem = f"figure_{number}_{slug}"
+    png = os.path.join(FIGURES, stem + ".png")
+    figure.savefig(png, dpi=dpi)
+    written = [stem + ".png"]
+    if vector:
+        figure.savefig(os.path.join(FIGURES, stem + ".pdf"))
+        written.append(stem + ".pdf")
     plt.close(figure)
-    size = os.path.getsize(path)
-    print(f"  wrote {name} at {dpi} dpi, {size / 1024:.0f} KB")
-    return {"number": number, "file": name, "dpi": dpi,
+    for name in written:
+        size = os.path.getsize(os.path.join(FIGURES, name)) / 1024
+        kind = "vector" if name.endswith(".pdf") else f"{dpi} dpi"
+        print(f"  wrote {name} ({kind}, {size:.0f} KB)")
+    return {"number": number, "file": stem + ".png", "dpi": dpi,
+            "submit": stem + (".pdf" if vector else ".png"),
+            "vector": vector,
             "caption": " ".join(caption.split()),
             "alt_text": " ".join(alt.split())}
 
@@ -132,7 +149,7 @@ def figure_design() -> dict:
     axes.text(50, 42.6, "Two arms, four factors, three outcomes",
               ha="center", va="bottom", fontsize=7.5)
 
-    caption = """
+    caption = f"""
         Figure 1. The design. Each factor is varied with the others held at a reference level,
         on synthetic curves whose peak time is known analytically and on fifteen public
         clinical acquisitions. The synthetic arm gives bias and spread against truth; the
@@ -141,16 +158,17 @@ def figure_design() -> dict:
         fixed before any measurement and are recorded with their amendments in the protocol
         accompanying the code.
     """
-    alt = """
+    alt = f"""
         A flow diagram in three columns. On the left, two inputs: synthetic curves with
-        analytic truth, and the UniToBrain set of fifteen public cases. In the middle, the
+        analytic truth, and the UniToBrain set of {load('aif_factor.json')['n_cases']} public cases. In the middle, the
         factors applied to each: curve model and noise level for the synthetic arm; curve
         model, spatial smoothing and arterial input for the clinical arm. On the right, three
         outcomes: bias and spread against the analytic peak time, hemispheric difference
         against the dataset's reference maps, and the arterial area ratio with the point at
         which the maps saturate. Arrows run from inputs through factors to outcomes.
     """
-    return save(figure, 1, "design", dpi=DPI_LINE_ART, caption=caption, alt=alt)
+    return save(figure, 1, "design", dpi=DPI_LINE_ART, caption=caption, alt=alt,
+                vector=True)
 
 
 # --------------------------------------------------------------------------------------------
@@ -264,7 +282,7 @@ def figure_floor() -> dict:
         nothing at the longest, while for the fitted path it stays high throughout.
     """
     return save(figure, 2, "quantisation_floor", dpi=DPI_COMBINATION,
-                caption=caption, alt=alt)
+                caption=caption, alt=alt, vector=True)
 
 
 # --------------------------------------------------------------------------------------------
@@ -362,7 +380,8 @@ def figure_arterial() -> dict:
         proportionality and then flatten at the implementation's ceilings from a factor of
         {first:.1f} onwards, with that region shaded; every measured case falls inside it.
     """
-    return save(figure, 3, "arterial_input", dpi=DPI_COMBINATION, caption=caption, alt=alt)
+    return save(figure, 3, "arterial_input", dpi=DPI_COMBINATION, caption=caption,
+                alt=alt, vector=True)
 
 
 # --------------------------------------------------------------------------------------------

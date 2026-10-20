@@ -421,8 +421,22 @@ def figure_block() -> str:
     return "\n".join(out)
 
 
-def title_page() -> str:
+def title_page(abstract_text: str) -> str:
+    """The separate title page the journal requires.
+
+    Read off the journal's own author guidelines rather than assumed: it must carry the title,
+    the article type, author details and affiliations, the corresponding author's address and
+    email, competing interests, funding, acknowledgements, **and a copy of the abstract**. The
+    first version of this file had neither the article type, the acknowledgements nor the
+    abstract — three omissions that the editorial office, not the reviewers, would have found.
+
+    The review is double-anonymised and the manuscript file carries no author identity; this
+    file is where the identity goes, which is why it is uploaded as a separate item.
+    """
+    abstract = abstract_text.replace("## Abstract", "").strip()
     return f"""# {TITLE}
+
+Article type: Research Article
 
 {AUTHOR}, ORCID {ORCID}
 
@@ -447,6 +461,17 @@ Generative artificial intelligence was used as a programming and editing assista
 preparation of the software, the analysis scripts and this manuscript. Every measurement was
 produced by executed code, every number in the manuscript is interpolated from a results file
 written by that code, and the author takes full responsibility for the content.
+
+## Acknowledgements
+
+The author thanks the authors of the UniToBrain dataset for publishing the acquisitions, the
+reference maps and the arterial input curves those maps were made with. Publishing the input
+alongside the output is what makes a comparison of method possible, and it is rarer than it
+should be.
+
+## Abstract
+
+{abstract}
 """
 
 
@@ -506,7 +531,7 @@ def main() -> int:
     with open(os.path.join(BUILD, "manuscript.md"), "w", encoding="utf-8") as handle:
         handle.write(document)
     with open(os.path.join(BUILD, "title_page.md"), "w", encoding="utf-8") as handle:
-        handle.write(title_page())
+        handle.write(title_page(sections["Abstract"]))
 
     counts = {name: word_count(text) for name, text in sections.items()}
     body = sum(v for k, v in counts.items() if k != "Abstract")

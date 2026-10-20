@@ -56,10 +56,28 @@ CASES = [
     ("the consent statement removed from the Methods",
      "check_statements",
      lambda d: d.replace("informed consent", "informed agreement", 1)),
+    ("an abstract subheading dropped",
+     "check_abstract_rules",
+     lambda d: d.replace("**Advances in knowledge.**", "Advances in knowledge.", 1)),
+    ("a citation in the abstract",
+     "check_abstract_rules",
+     lambda d: d.replace("This study measures each separately.",
+                         "This study measures each separately.[1]", 1)),
+    ("an abbreviation in the abstract",
+     "check_abstract_rules",
+     # The abstract's own text, not the body's: an edit elsewhere leaves the abstract clean
+     # and proves nothing, which is how the first version of this case passed.
+     lambda d: d.replace("The sampled time to peak has a precision floor",
+                         "The sampled TTP has a precision floor", 1)),
 ]
 
 AFFILIATION_CASES = [
     ("a title page without the affiliation", lambda t: t.replace("Institute of One", "Somewhere")),
+    ("a title page without the article type", lambda t: t.replace("Article type:", "Type:")),
+    ("a title page without the abstract the journal asks for",
+     lambda t: t.replace("## Abstract", "## Summary")),
+    ("a title page without acknowledgements",
+     lambda t: t.replace("## Acknowledgements", "## Thanks")),
 ]
 
 
@@ -70,7 +88,8 @@ def main() -> int:
     baseline = {name: getattr(checker, name)(document if name != "check_affiliation"
                                              else title_page)
                 for name in ("check_bold", "check_figures", "check_numbers",
-                             "check_citations", "check_statements", "check_affiliation")}
+                             "check_citations", "check_statements", "check_affiliation",
+                             "check_abstract_rules", "check_figure_formats")}
     unclean = {k: v for k, v in baseline.items() if v}
     if unclean:
         print("the unmodified manuscript does not pass, so nothing below means anything:")
@@ -94,7 +113,8 @@ def main() -> int:
             print(f"MISSED   {description}\n         {check_name} reported nothing")
 
     for description, break_it in AFFILIATION_CASES:
-        problems = checker.check_affiliation(break_it(title_page))
+        broken = break_it(title_page)
+        problems = checker.check_affiliation(broken) + checker.check_title_page_items(broken)
         if problems:
             print(f"caught   {description}\n         {problems[0][:95]}")
         else:
