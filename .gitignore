@@ -24,3 +24,14 @@ submission/**/*.png
 submission/**/_returned_*
 submission/**/_qa_*
 submission/**/response_to_editorial_office.txt
+
+# The manuscript and its figures are generated, like the SoftwareX package above: the sources
+# are paper/build_manuscript.py and paper/make_figures.py, and both read only paper/results/,
+# which is tracked. What is excluded is everything derived from them.
+#
+#   paper/build/      the manuscript, title page and word counts
+#   paper/figures/    the figures and the captions written beside them
+#
+# paper/results/ is NOT excluded: the release has to contain every result the manuscript cites.
+paper/build/
+paper/figures/

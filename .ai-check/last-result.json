@@ -28,12 +28,12 @@
     "note": "Run after every fix, on the file contents whose digests are recorded above. These are local runs, not the framework's verdict.",
     "measurement_suite": {
       "command": "python -m unittest discover -s . (from paper/analysis)",
-      "result": "Ran 139 tests in 6.905s",
+      "result": "Ran 139 tests in 7.130s",
       "passed": true
     },
     "package_suite": {
       "command": "python -m pytest tests -q",
-      "result": "46 passed in 1.99s",
+      "result": "46 passed in 2.07s",
       "passed": true
     },
     "injection_proof": {
@@ -156,7 +156,6 @@
     "No run of the expanded snapshot has returned PASS, and none can while the framework executes tests under python -I: NumPy lives in the user site-packages, which that mode ignores. The sixth round did validate cleanly (inputs_unchanged: true) and returned FAIL for exactly that reason, with both reviews completing and both returning fail on findings since addressed.",
     "The findings of the sixth round were fixed after it ran, so the fixes themselves have not been reviewed. The cross-check stops here for this module by the author's decision: six rounds, 31 defects, and no measured value has moved since the third.",
     "The framework cannot execute this project's tests at all while NumPy lives only in the user site-packages, so its verdict can never be better than FAIL here without either installing NumPy where python -I can see it or amending the shared adapter.",
-    "A partly extracted acquisition folder whose file count happens to divide by the number of time points still yields a wrong expected slice count in run_screen.",
     "On the fitted path the finite-population correction uses the admitted count, which is not a random subset of the drawn voxels, so the standard error is approximate there."
   ]
 }
