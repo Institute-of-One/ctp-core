@@ -87,6 +87,11 @@ class Numbers:
         middle = values[len(values) // 2]
         return values[0], middle, values[-1]
 
+    def samples_in(self, case: str) -> int:
+        """How many time points that case was acquired at, which is how many values the
+        fit-free path can return."""
+        return next(r["n_samples"] for r in self.clinical if r["case"] == case)
+
     def standard_errors(self) -> tuple[float, float]:
         values = [r["delta_standard_error"] for r in self.clinical]
         return min(values), max(values)
@@ -199,9 +204,11 @@ arise. The dataset's own publication records the approvals under which it was co
 **Implementation.** All measurements use ctp-core, an MIT-licensed Python implementation of
 singular value decomposition deconvolution[@ostergaard] in its block-circulant,
 arrival-insensitive form,[@wu_osvd] with gamma-variate fitting,[@gamma_variate] following the
-indicator-dilution formulation.[@konstas] Perfusion maps
-are displayed with the ASIST-Japan standard lookup table.[@alut] The version measured here is
-archived with a digital object identifier (Data availability).
+indicator-dilution formulation.[@konstas] The implementation displays
+blood flow and volume maps with the ASIST-Japan standard lookup table;[@alut] the time-to-peak
+maps in Figure 4 are shown on a diverging scale instead, because what is compared there is a
+deviation about a midpoint rather than a magnitude. The version measured here is archived with
+a digital object identifier (Data availability).
 
 **Design.** Four factors were varied with the others held at a reference level (Figure 1): the
 curve model (gamma-variate fit against the fit-free path, which takes the time to peak as the
@@ -274,8 +281,8 @@ def results(n: Numbers) -> str:
     return f"""
 ## Results
 
-**The fit-free path has a precision floor at the sampling grid, and it binds only when sampling
-is coarse.** On synthetic curves the standard deviation of the recovered time to peak for the
+*The fit-free path has a precision floor at the sampling grid, and it binds only when sampling
+is coarse.* On synthetic curves the standard deviation of the recovered time to peak for the
 fit-free path approaches the closed form for a value rounded to a grid of spacing Δt
 (Figure 2). At {floor_coarse['dt']:.2f} s and the highest signal it was
 {floor_coarse['sd']:.2f} s against a predicted {floor_coarse['quantisation_floor']:.2f} s, a
@@ -288,26 +295,26 @@ direct: doubling the signal to noise ratio improved the fit-free path by {gain_f
 improved the fitted path at every interval. Where sampling is coarse, the fit-free path is
 already at its floor and dose cannot lower it.
 
-**Against an independent reference the same split appears.** Compared with the reference maps
+*Against an independent reference the same split appears.* Compared with the reference maps
 the dataset ships, and after removing the sampling error of our own estimate, at
 {coarse['stratum'].split()[1]} s sampling the fit-free path disagreed by
 {coarse['argmax']['residual_after_removing_our_sampling']:.2f} s — close to the predicted floor
-of {floor_coarse['quantisation_floor']:.2f} s — while the fitted path's disagreement of
-{coarse['fitted']['rmse']:.2f} s was smaller than our own sampling error of
-{coarse['fitted']['our_sampling_standard_error']:.2f} s, so nothing of it can be attributed to
+of {floor_coarse['quantisation_floor']:.2f} s — while the fitted path's disagreement did not
+exceed the sampling error of our own estimate ({coarse['fitted']['rmse']:.3f} against
+{coarse['fitted']['our_sampling_standard_error']:.3f} s), so none of it can be attributed to
 method. At {fine['stratum'].split()[1]} s the two were indistinguishable
 ({fine['argmax']['residual_after_removing_our_sampling']:.2f} against
 {fine['fitted']['residual_after_removing_our_sampling']:.2f} s) and the fit bought nothing. The
 precision of the measurement is a limit on what can be said: on {under} of the {total} measured
 arms the hemispheric difference was smaller than twice its own standard error.
 
-**Smoothing buys admissible fits rather than accuracy.** On the unfiltered series the validity
+*Smoothing buys admissible fits rather than accuracy.* On the unfiltered series the validity
 rule rejected a median {unfiltered[1]:.0f}% of fits (range {unfiltered[0]:.0f} to
 {unfiltered[2]:.0f}%); on the 3 mm series the median fell to {filtered[1]:.0f}%
 ({filtered[0]:.0f} to {filtered[2]:.0f}%). The hemispheric differences themselves moved little
 between the two series.
 
-**The automatic arterial input understates the arterial area, and the maps stop showing it.**
+*The automatic arterial input understates the arterial area, and the maps stop showing it.*
 Across all {n.aif['n_cases']} cases the automatically detected input gave an area smaller than
 the one the dataset's maps were made with by a median factor of
 {n.aif['median_area_ratio']:.2f} (range {n.aif['min_area_ratio']:.2f} to
@@ -317,9 +324,13 @@ tracked the error exactly up to the implementation's own clips, which both maps 
 factor of {n.ceiling:.1f}. Every case measured here lies beyond that point, so on this data the
 quantitative map cannot show the error it contains.
 
-**On real images.** Figure 4 shows the case the frozen rule selected, {chosen['case']}, whose
-left-right asymmetry in the reference maps is the largest in the set at
-{chosen['signed_delta']:+.2f} s.
+*On real images the quantisation is visible, not only measurable.* Figure 4 shows the case the
+frozen rule selected, {chosen['case']}, whose left-right asymmetry in the reference maps is the
+largest in the set at {chosen['signed_delta']:+.2f} s, on the slice the measurement used. The
+delay in the left hemisphere appears in all three maps. The fit-free map is also visibly
+stepped, in flat regions of a single value, because on this acquisition its output can fall only
+on the {n.samples_in(chosen['case'])} sampling instants — the same property that Figure 2
+measures as a precision floor, seen directly on a brain.
 """
 
 
@@ -355,7 +366,7 @@ factors are properties of choices rather than verdicts on products. The syntheti
 first such reference — the framework cited above precedes it — and what is new is that its named
 future work has been done on code and data a reader can run.
 
-**The reference is not neutral between the two paths compared.** The maps the clinical arm is
+*The reference is not neutral between the two paths compared.* The maps the clinical arm is
 measured against come from a model-based non-linear regression — a fitted method.[@nlr_method]
 A fitted path agreeing with them better than a fit-free one is therefore not, by itself,
 evidence about accuracy; it could be agreement between two methods that make the same

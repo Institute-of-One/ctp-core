@@ -365,7 +365,135 @@ def figure_arterial() -> dict:
     return save(figure, 3, "arterial_input", dpi=DPI_COMBINATION, caption=caption, alt=alt)
 
 
-FIGURES_BY_NUMBER = {1: figure_design, 2: figure_floor, 3: figure_arterial}
+# --------------------------------------------------------------------------------------------
+# Figure 4: the result on real images, for the case the frozen rule chose.
+# --------------------------------------------------------------------------------------------
+
+def figure_clinical() -> dict:
+    """The clinical figure, on the slice the measurement used.
+
+    Two choices here are worth stating because they are the ones that could mislead.
+
+    The slice shown is the one the *measurement* used -- the slice with the most admitted
+    tissue -- not the slice where the frozen rule found the largest asymmetry. The rule selects
+    the case; showing a different slice from the one the numbers describe would put a picture
+    next to figures that are not about it. Both are in the caption.
+
+    All three maps are shown as a deviation from their own median over the displayed tissue,
+    on one window. They cannot share an absolute window: the reference maps are referenced to
+    bolus arrival and this implementation to the start of the acquisition, a near-constant
+    offset of about 23 s, which is a difference of convention and not a finding. Removing each
+    map's own median is exactly the quantity the paper measures -- a hemispheric difference --
+    and leaves the offset where it belongs.
+    """
+    import numpy as np
+
+    data = np.load(os.path.join(RESULTS, "mol001_maps.npz"))
+    case = str(data["case"])
+    measured_slice, rule_slice = int(data["measured_slice"]), int(data["rule_slice"])
+    mask, left, right = data["mask"], data["left"], data["right"]
+    midline = int(data["midline"])
+
+    rows, cols = np.nonzero(mask)
+    pad = 6
+    box = (slice(max(rows.min() - pad, 0), rows.max() + pad),
+           slice(max(cols.min() - pad, 0), cols.max() + pad))
+
+    # Every panel is drawn over the voxels all three admit. Each method's own admission differs
+    # -- ours keeps a rim of scalp and skull that the reference's masking removes, and the
+    # fitted path drops the voxels whose peak fell outside the acquisition -- and a figure in
+    # which the three cover different tissue invites a reader to compare the masks instead of
+    # the methods. The Results use each method's own admission; this is stated in the caption,
+    # and it is why the numbers printed here are not identical to those.
+    admitted = {
+        "Reference maps (NLR)": ((data["reference_ttp"] > 0.5) & (data["reference_ttp"] < 20.0)
+                                 & mask),
+        "Fitted": np.isfinite(data["fitted_ttp"]) & mask,
+        "Fit-free (argmax)": np.isfinite(data["sampled_ttp"]) & mask,
+    }
+    common = admitted["Reference maps (NLR)"] & admitted["Fitted"] & admitted["Fit-free (argmax)"]
+    panels = [("Reference maps (NLR)", data["reference_ttp"], common),
+              ("Fitted", data["fitted_ttp"], common),
+              ("Fit-free (argmax)", data["sampled_ttp"], common)]
+
+    window = 6.0
+    figure, axes = plt.subplots(1, 4, figsize=(TWO_COLUMN, 2.0), layout="constrained")
+
+    baseline = data["baseline"]
+    axes[0].imshow(baseline[box], cmap="gray", vmin=0, vmax=80)
+    axes[0].axvline(midline - box[1].start, color="white", linewidth=0.7,
+                    linestyle=(0, (3, 2)))
+    axes[0].set_title(f"{case}, slice {measured_slice}", fontsize=6.6)
+    axes[0].text(0.03, 0.03, "baseline attenuation\nand the midline used",
+                 transform=axes[0].transAxes, fontsize=5.4, color="white", va="bottom")
+
+    deltas = {}
+    for axis, (name, image, valid) in zip(axes[1:], panels):
+        middle = float(np.median(image[valid]))
+        shown = np.where(valid, image - middle, np.nan)
+        handle = axis.imshow(shown[box], cmap="RdBu_r", vmin=-window, vmax=window)
+        deltas[name] = float(image[valid & left].mean() - image[valid & right].mean())
+        axis.set_title(name, fontsize=6.6)
+        axis.text(0.03, 0.03, f"L-R {deltas[name]:+.2f} s", transform=axis.transAxes,
+                  fontsize=5.8, va="bottom",
+                  bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.75,
+                        "pad": 1.0})
+
+    for axis in axes:
+        axis.set_xticks([])
+        axis.set_yticks([])
+        for spine in axis.spines.values():
+            spine.set_visible(False)
+
+    bar = figure.colorbar(handle, ax=axes, fraction=0.025, pad=0.01)
+    bar.set_label("time to peak, relative to the slice median (s)", fontsize=5.8)
+    bar.ax.tick_params(labelsize=5.4)
+
+    clinical = load("f1_f2_clinical.json")
+    sampled = {r["method"]: r for r in clinical
+               if r["case"] == case and r["series"] == "filtered_3mm"}
+    reference = next(c for c in load("clinical_vs_reference.json")["cases"]
+                     if c["case"] == case)
+    rejected = 100 * (int(data["n_fit_failed"]) + int(data["n_outside_window"])) \
+        / int(data["n_admitted"])
+
+    caption = f"""
+        Figure 4. The two curve models on real images, for the case the frozen rule selected.
+        The rule — the largest left-right hemispheric asymmetry in the reference maps — chose
+        {case}, where that asymmetry is largest on slice {rule_slice} at
+        {load('figure_case.json')['chosen']['signed_delta']:+.2f} s; the slice shown is slice
+        {measured_slice}, the one the measurement used, being the slice with the most admitted
+        tissue. Left: baseline attenuation with the midline taken from the tissue mask. Right,
+        on one window: the reference maps the dataset ships, the fitted path and the fit-free
+        path, each as a deviation from its own median over the {int(mask.sum()):,} admitted
+        voxels, because the reference is referenced to bolus arrival and this implementation to
+        the start of the acquisition. The delay on the left side is visible in all three. Over
+        the whole slice the hemispheric differences are
+        {deltas['Reference maps (NLR)']:+.2f}, {deltas['Fitted']:+.2f} and
+        {deltas['Fit-free (argmax)']:+.2f} s; the Results quote, over each method's own
+        admitted voxels and
+        {reference['reference_delta']:+.2f}, {sampled['gamma']['delta']:+.2f} ±
+        {sampled['gamma']['delta_standard_error']:.2f} and {sampled['raw']['delta']:+.2f} ±
+        {sampled['raw']['delta_standard_error']:.2f} s, from the
+        {sampled['gamma']['n_per_hemisphere']}-voxel sample per hemisphere that the fit's cost
+        allows — the difference between the two being an illustration of the sampling precision
+        the Methods report. {rejected:.1f}% of fits were rejected on this slice, almost all for
+        a peak outside the acquisition.
+    """
+    alt = f"""
+        Four panels of the same brain slice. The first is a greyscale baseline CT image with a
+        dashed vertical line marking the midline. The other three are time-to-peak maps shown
+        as a deviation from each map's own median on a shared blue-to-red scale from minus six
+        to plus six seconds: the dataset's reference maps, this implementation's fitted path,
+        and its fit-free path. All three show the same region of delay on the left side of the
+        image, redder than the opposite hemisphere, and each panel is labelled with its
+        left-minus-right difference in seconds.
+    """
+    return save(figure, 4, "clinical_case", dpi=DPI_COMBINATION, caption=caption, alt=alt)
+
+
+FIGURES_BY_NUMBER = {1: figure_design, 2: figure_floor, 3: figure_arterial,
+                     4: figure_clinical}
 
 
 def main(argv=None) -> int:
