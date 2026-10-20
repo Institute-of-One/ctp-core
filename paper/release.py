@@ -35,7 +35,7 @@ CONCEPT_DOI = "10.5281/zenodo.20921268"
 #: Frozen to this release. Filled in once Zenodo has minted it, which is after the GitHub
 #: release is published -- so it is PENDING until then, and the manuscript cannot be built for
 #: submission while it is.
-VERSION_DOI = PENDING
+VERSION_DOI = "10.5281/zenodo.23490110"
 
 CONCEPT_DOI_URL = f"https://doi.org/{CONCEPT_DOI}"
 VERSION_DOI_URL = (f"https://doi.org/{VERSION_DOI}" if VERSION_DOI != PENDING

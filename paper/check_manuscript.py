@@ -132,6 +132,10 @@ def check_numbers(document: str) -> list[str]:
     problems = []
     body = body_of(document)
     body = re.sub(r"\[\d+(?:,\d+)*\]", " ", body)          # citation markers
+    # A DOI is an identifier, not a measurement: 10.5281 is not a quantity anybody measured,
+    # and flagging it would mean either a false failure or a results file polluted to silence
+    # one. Removed before the scan rather than excepted after it.
+    body = re.sub(r"\b10\.\d{4,9}/\S+", " ", body)
     for token in re.findall(r"(?<![\w.])\d+\.\d+(?![\w])", body):
         if token not in known:
             problems.append(f"the number {token} is in the text but in no results file")

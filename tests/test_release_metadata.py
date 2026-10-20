@@ -76,7 +76,9 @@ def _pending():
     reach a submission.
     """
     text = (REPO / "paper" / "release.py").read_text(encoding="utf-8")
-    declared = re.search(r'^VERSION_DOI = (\w+)', text, flags=re.MULTILINE)
+    # Either the bare PENDING marker or a quoted DOI; the first version of this pattern read
+    # only the marker and so reported "declares no version DOI" the moment one was filled in.
+    declared = re.search(r'^VERSION_DOI = "?([^"\n]+)"?', text, flags=re.MULTILINE)
     version = re.search(r'^VERSION = "([^"]+)"', text, flags=re.MULTILINE)
     assert declared and version, "paper/release.py declares no version or version DOI"
     assert version.group(1) == _version(), (
