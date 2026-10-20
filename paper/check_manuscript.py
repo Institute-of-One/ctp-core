@@ -278,7 +278,26 @@ def check_statements(document: str) -> list[str]:
     return problems
 
 
-def main() -> int:
+def main(argv=None) -> int:
+    """Check the manuscript; with ``--for-submission``, also require it to be submittable.
+
+    The two are not the same thing, and conflating them made continuous integration red for a
+    condition that is not a defect. A version DOI that has not been minted yet is a fact about
+    where the release process has got to, not a fault in the document: the DOI cannot exist
+    until the release is published, and the release should not be published from a manuscript
+    that has not been checked. Continuous integration therefore runs the defect checks, and
+    the submission procedure runs this with ``--for-submission``, which additionally refuses a
+    manuscript that would cite a DOI resolving to nothing.
+
+    A red build that everybody expects teaches people to ignore red builds.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--for-submission", action="store_true",
+                        help="also require the release to exist and be cited")
+    args = parser.parse_args(argv)
+
     document = read("manuscript.md")
     title_page = read("title_page.md")
 
@@ -292,8 +311,10 @@ def main() -> int:
         "abstract rules": check_abstract_rules(document),
         "title page items": check_title_page_items(title_page),
         "figure formats": check_figure_formats(document),
-        "release and DOI": check_release(document),
     }
+    release_problems = check_release(document)
+    if args.for_submission:
+        checks["release and DOI"] = release_problems
 
     failed = 0
     for name, problems in checks.items():
@@ -309,6 +330,14 @@ def main() -> int:
         print(f"{failed} problems")
         return 1
     print("the manuscript passes every check in this file")
+    if not args.for_submission and release_problems:
+        # Said out loud on every run, so the pending state cannot be forgotten just because
+        # it does not fail the build.
+        print()
+        print("Not yet submittable, which is not a defect in the manuscript:")
+        for problem in release_problems:
+            print(f"  {problem}")
+        print("Run with --for-submission to make that a failure.")
     return 0
 
 

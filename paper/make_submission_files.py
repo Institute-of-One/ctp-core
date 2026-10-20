@@ -164,8 +164,9 @@ def main() -> int:
         "asks a title page to hold. The manuscript file carries no author identity, because",
         "the review is double-anonymised.",
         "",
-        "Before uploading: run check_manuscript.py, check_references.py and their two proof",
-        "scripts, and look at every figure.",
+        "Before uploading: run check_manuscript.py --for-submission (which also requires",
+        "the version DOI to exist), check_references.py, their two proof scripts, and",
+        "verify_submission_docs.py. Then look at every page image and every figure.",
     ]
     with open(os.path.join(OUT, "Checklist.txt"), "w", encoding="utf-8") as handle:
         handle.write("\n".join(checklist) + "\n")
