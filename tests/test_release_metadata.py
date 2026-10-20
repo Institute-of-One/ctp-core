@@ -66,15 +66,61 @@ def test_citation_declares_both_the_concept_and_the_version_doi():
     assert concept != version, "the concept and version DOIs are the same record"
 
 
+def _pending():
+    """Whether the repository says this version has not been archived yet.
+
+    Zenodo mints a version DOI when the release is published, so between bumping the version
+    and publishing there is a window in which no such DOI exists. That window is real and
+    cannot be designed away; what can be is its ambiguity. paper/release.py declares it, and
+    paper/check_manuscript.py refuses to pass a manuscript during it, so the window cannot
+    reach a submission.
+    """
+    text = (REPO / "paper" / "release.py").read_text(encoding="utf-8")
+    declared = re.search(r'^VERSION_DOI = (\w+)', text, flags=re.MULTILINE)
+    version = re.search(r'^VERSION = "([^"]+)"', text, flags=re.MULTILINE)
+    assert declared and version, "paper/release.py declares no version or version DOI"
+    assert version.group(1) == _version(), (
+        "paper/release.py says version %s and CITATION.cff says %s"
+        % (version.group(1), _version())
+    )
+    return declared.group(1) == "PENDING"
+
+
 def test_the_version_doi_names_the_version_this_repository_declares():
     description = next(
         description
         for value, description in _citation()
         if value == _labelled("version doi")
     )
+    if _pending():
+        assert _version() not in description, (
+            "CITATION.cff names v%s in its version DOI description while paper/release.py "
+            "says the DOI is still PENDING; one of them is wrong" % _version()
+        )
+        return
     assert _version() in description, (
         "CITATION.cff describes the version DOI without naming v%s, the version it "
         "declares: %r" % (_version(), description)
+    )
+
+
+def test_every_file_that_names_the_version_agrees():
+    """Four files carry it, and they have disagreed before."""
+    import json
+
+    citation = _version()
+    init = re.search(r'__version__ = "([^"]+)"',
+                     (REPO / "ctp_core" / "__init__.py").read_text(encoding="utf-8"))
+    zenodo = json.loads((REPO / ".zenodo.json").read_text(encoding="utf-8"))
+    assert init and init.group(1) == citation, (
+        "ctp_core.__version__ is %s and CITATION.cff says %s"
+        % (init.group(1) if init else None, citation)
+    )
+    assert zenodo.get("version") == citation, (
+        ".zenodo.json says %s and CITATION.cff says %s" % (zenodo.get("version"), citation)
+    )
+    assert "doi" not in zenodo, (
+        "a top-level doi in .zenodo.json stops Zenodo minting a version DOI for the release"
     )
 
 
@@ -85,12 +131,16 @@ def test_the_readme_gives_the_version_doi_rather_than_a_promise_of_one():
     and the person most likely to try is a reviewer holding the manuscript that cites
     the number the README says does not exist yet.
     """
+    # "this release" while a newer one is prepared but unarchived is misleading, so the line
+    # says "latest archived release" during that window. Either wording is accepted; what is
+    # not is a line that names no DOI at all.
     line = next(
         (line for line in README.read_text(encoding="utf-8").splitlines()
-         if "this release" in line.lower() and "doi" in line.lower()),
+         if ("this release" in line.lower() or "archived release" in line.lower())
+         and "doi" in line.lower()),
         None,
     )
-    assert line is not None, "the README no longer names the DOI for this release"
+    assert line is not None, "the README no longer names the DOI for the archived release"
     assert DOI.search(line), (
         "the README promises a DOI for this release instead of giving one: %r" % line
     )

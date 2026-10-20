@@ -141,7 +141,13 @@ If you use this software, please cite it via [`CITATION.cff`](CITATION.cff).
 - Reference: IORN-001
 - Source code: [github.com/Institute-of-One/ctp-core](https://github.com/Institute-of-One/ctp-core)
 - DOI (all versions / concept): [10.5281/zenodo.20921268](https://doi.org/10.5281/zenodo.20921268)
-- DOI (this release, v0.1.1): [10.5281/zenodo.22226447](https://doi.org/10.5281/zenodo.22226447) — the archived snapshot the IORN-001 manuscript describes
+- DOI (latest archived release, v0.1.1): [10.5281/zenodo.22226447](https://doi.org/10.5281/zenodo.22226447) — the archived snapshot the IORN-001 manuscript describes
+- **v0.2.0 is prepared in this repository and is not archived yet.** It adds the measurement
+  behind the British Journal of Radiology submission: the drivers under `paper/analysis/`, the
+  frozen design and its amendments in `paper/PROTOCOL.md`, and every measured value as a data
+  file in `paper/results/`. Its version DOI is minted when the release is published, and until
+  then `paper/release.py` says `PENDING` and `paper/check_manuscript.py` refuses to pass a
+  manuscript that would cite a DOI that does not exist.
 
 ## License
 

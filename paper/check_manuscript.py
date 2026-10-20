@@ -215,6 +215,32 @@ def check_figure_formats(document: str) -> list[str]:
     return problems
 
 
+def check_release(document: str) -> list[str]:
+    """The manuscript must name a DOI that exists, and the right one.
+
+    A data availability statement that points at a pointer, or at a DOI not yet minted, is a
+    promise to a reader that resolves to nothing. The first version of this manuscript said the
+    work was archived "at the digital object identifier given on the title page" and the title
+    page gave none.
+    """
+    import release
+
+    problems = []
+    if not release.is_ready():
+        problems.append(
+            f"the version DOI is still {release.PENDING}: publish the release, then put the "
+            "minted DOI in paper/release.py and rebuild. The manuscript cannot be submitted "
+            "naming a DOI that does not exist.")
+        return problems
+    if release.VERSION_DOI not in document:
+        problems.append("the data availability statement does not give the version DOI")
+    if release.CONCEPT_DOI in document:
+        problems.append(
+            "the manuscript cites the concept DOI, which follows the newest release and will "
+            "one day point at software this paper did not measure; cite the version DOI")
+    return problems
+
+
 def check_affiliation(title_page: str) -> list[str]:
     import build_manuscript as build
 
@@ -266,6 +292,7 @@ def main() -> int:
         "abstract rules": check_abstract_rules(document),
         "title page items": check_title_page_items(title_page),
         "figure formats": check_figure_formats(document),
+        "release and DOI": check_release(document),
     }
 
     failed = 0

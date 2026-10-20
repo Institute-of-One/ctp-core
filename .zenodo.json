@@ -18,5 +18,5 @@
     "IORN-001"
   ],
   "description": "ctp-core is the open, reproducible scientific core of a CT Perfusion (CTP) analysis pipeline. It provides gamma-variate fitting, baseline correction, peak detection, derived perfusion parameters, a reproducible synthetic data generator, ASIST-Japan standard a-LUT visualization, validation scripts and tests. It contains no GUI, no DICOM I/O, and no confidential, client, or patient data. This is the reproducible core referenced by Institute of One Research Note IORN-001.",
-  "version": "0.1.1"
+  "version": "0.2.0"
 }

@@ -399,15 +399,27 @@ as results.
 
 
 def statements(n: Numbers) -> str:
-    return """
+    """The data availability statement, naming the archive rather than pointing at a pointer.
+
+    The first version said the work was "archived at the digital object identifier given on
+    the title page", and the title page gave no identifier: a promise that resolved to
+    nothing. The version DOI is the one to cite -- it is frozen to the snapshot measured here,
+    where the concept DOI follows whichever release is newest and would, in time, point at
+    software this paper did not measure.
+    """
+    import release
+
+    return f"""
 ## Data availability
 
-The UniToBrain dataset is public and is not redistributed here. The implementation, the drivers
-that produced every number in this manuscript, the recorded design and its amendments, and the
-measurement results as data files are archived at the digital object identifier given on the
-title page; the repository is public. The figures are generated from those result files by a
-script in the same archive, and the manuscript itself is generated from them, so no number in
-the text is typed by hand.
+The UniToBrain dataset is public and is not redistributed here; it is cited above and available
+from its authors. The implementation, the drivers that produced every number in this manuscript,
+the recorded design with its amendments, and the measurement results as data files are archived
+at {release.VERSION_DOI_URL} (version {release.VERSION}), and the repository is public at
+{release.REPOSITORY}. The figures are generated from those result files by a script in the same
+archive, and this manuscript is generated from them, so no number in the text is typed by hand.
+The archived version is the one measured here rather than the newest, so it will not change
+under a reader.
 
 ## Figures
 """

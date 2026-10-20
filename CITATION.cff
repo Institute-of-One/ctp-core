@@ -9,8 +9,8 @@ abstract: >-
   tests. It contains no GUI, no DICOM I/O, and no confidential, client, or
   patient data.
 type: software
-version: "0.1.1"
-date-released: "2026-09-01"
+version: "0.2.0"
+date-released: "2026-10-20"
 license: MIT
 authors:
   - family-names: Yamamoto
