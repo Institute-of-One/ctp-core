@@ -41,3 +41,24 @@ jobs:
         run: python -m unittest discover -s . -v
       - name: Prove those tests by injecting the defects they claim to catch
         run: python paper/analysis/prove_driver_gates.py
+
+  # The manuscript and its figures are generated from paper/results/, which is tracked, so this
+  # runs without the dataset. It does not resolve DOIs: check_references.py needs the network
+  # and is run before a submission, not on every push.
+  manuscript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install -r requirements-core.txt
+      - name: Draw the figures
+        run: python paper/make_figures.py
+      - name: Build the manuscript
+        run: python paper/build_manuscript.py
+      - name: Check it
+        run: python paper/check_manuscript.py
+      - name: Prove those checks by breaking the manuscript
+        run: python paper/prove_manuscript_checks.py
