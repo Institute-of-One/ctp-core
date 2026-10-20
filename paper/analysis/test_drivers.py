@@ -46,6 +46,44 @@ def ttp_image(left_value: float, right_value: float, *, width: int = 200, height
     return image
 
 
+@contextlib.contextmanager
+def stub_pydicom(headers):
+    """Replace pydicom while the block runs. ``headers`` maps a file path to (number, location).
+
+    The drivers read DICOM only through pydicom.dcmread, and only for AcquisitionNumber,
+    SliceLocation, RescaleSlope, RescaleIntercept and pixel_array. Supplying those directly
+    keeps these tests about the gates rather than about a DICOM library.
+    """
+
+    class Slice:
+        def __init__(self, stamp, location):
+            self.AcquisitionNumber = stamp
+            self.SliceLocation = location
+            self.RescaleSlope = 1.0
+            self.RescaleIntercept = 0.0
+            self.pixel_array = np.zeros((2, 2), dtype=np.int16)
+
+    planted = {str(path): Slice(*value) for path, value in headers.items()}
+    stub = types.ModuleType("pydicom")
+
+    def dcmread(path, **kwargs):
+        try:
+            return planted[str(path)]
+        except KeyError:
+            raise FileNotFoundError(f"no planted header for {path}") from None
+
+    stub.dcmread = dcmread
+    previous = sys.modules.get("pydicom")
+    sys.modules["pydicom"] = stub
+    try:
+        yield
+    finally:
+        if previous is None:
+            del sys.modules["pydicom"]
+        else:
+            sys.modules["pydicom"] = previous
+
+
 class ScreeningRule(unittest.TestCase):
     """The figure case is chosen by the rule in PROTOCOL.md, on the dataset's own maps."""
 
@@ -185,8 +223,14 @@ class ScreeningWindowsAgree(unittest.TestCase):
 
 
 class SamplingRule(unittest.TestCase):
-    """The clinical arm draws a fixed number of voxels per hemisphere. The docstring justifies
-    the number with a standard error; that arithmetic is checked here rather than trusted."""
+    """The clinical arm draws a fixed number of voxels per hemisphere, with a fixed seed.
+
+    What this class covers is the *rule*: the frozen numbers, the paired draw, and that every
+    drawn voxel lies in the hemisphere it is attributed to. It used to claim it checked the
+    precision that justifies the sample size; that claim was withdrawn with the test that made
+    it, and a reviewer found the docstring still saying so. The precision is now
+    :class:`StandardErrorOfADifference` and the measured-spread test in ClinicalEndToEnd.
+    """
 
     def test_the_frozen_sampling_rule_is_the_one_in_the_protocol(self):
         """PROTOCOL.md fixes these two numbers, so they are pinned and not merely bounded.
@@ -547,6 +591,24 @@ class LoadingACase(unittest.TestCase):
             with self.assertRaises(ValueError):
                 unitobrain.load(case)
 
+    def test_a_time_vector_that_is_not_increasing_is_refused(self):
+        """A reviewer found the order was never checked, only the length.
+
+        The vector is the acquisition window, the mean sampling interval and the x-axis of
+        every fit. Out of order, dt is meaningless or negative and the window is not the
+        acquisition, and nothing downstream would notice.
+        """
+        for times in ([0.0, 2.81, 1.0, 8.43], [0.0, 0.0, 2.81, 5.62], [3.0, 2.0, 1.0, 0.0]):
+            with self.subTest(times=times), self.dataset(times=times, n_times=4) as case:
+                with self.assertRaises(ValueError) as caught:
+                    unitobrain.load(case)
+                self.assertIn("strictly increasing", str(caught.exception))
+
+    def test_a_non_finite_time_is_refused(self):
+        with self.dataset(times=[0.0, 2.81, float("nan"), 8.43], n_times=4) as case:
+            with self.assertRaises(ValueError):
+                unitobrain.load(case)
+
     def test_the_window_and_interval_come_from_the_time_vector(self):
         with self.dataset(times=[0.0, 2.81, 5.62, 8.43], n_times=4) as case:
             acquisition = unitobrain.load(case)
@@ -572,26 +634,8 @@ class ReadingASeries(unittest.TestCase):
             name.write_bytes(b"")
             names.append(str(name))
 
-        class Slice:
-            def __init__(self, stamp, location):
-                self.AcquisitionNumber = stamp
-                self.SliceLocation = location
-                self.RescaleSlope = 1.0
-                self.RescaleIntercept = 0.0
-                self.pixel_array = np.zeros((2, 2), dtype=np.int16)
-
-        by_name = {name: Slice(*entry) for name, entry in zip(names, entries)}
-        stub = types.ModuleType("pydicom")
-        stub.dcmread = lambda path, **kwargs: by_name[str(path)]
-        previous = sys.modules.get("pydicom")
-        sys.modules["pydicom"] = stub
-        try:
+        with stub_pydicom(dict(zip(names, entries))):
             yield folder
-        finally:
-            if previous is None:
-                del sys.modules["pydicom"]
-            else:
-                sys.modules["pydicom"] = previous
 
     def test_a_well_formed_series_is_read(self):
         with self.files([(1, 0.0), (1, 2.5), (2, 0.0), (2, 2.5)]) as folder:
@@ -687,6 +731,108 @@ class ReferenceSeriesOrdering(unittest.TestCase):
     def test_the_position_check_is_optional_but_the_index_check_is_not(self):
         # Callers that genuinely have no position to check still cannot read past the end.
         self.assertEqual(self.series([10.0]).at_slice(0)[0, 0], 10.0)
+
+    @contextlib.contextmanager
+    def on_disk(self, locations):
+        """A reference folder whose file-name order is the reverse of its position order."""
+        folder = pathlib.Path(tempfile.mkdtemp())
+        maps = folder / ("MOL-001" + unitobrain.MAPS) / "NLR_TTP"
+        maps.mkdir(parents=True)
+        headers = {}
+        for n, location in enumerate(locations):
+            path = maps / f"{n:04d}.dcm"
+            path.write_bytes(b"")
+            headers[path] = (1, location)
+        original = unitobrain.root
+        unitobrain.root = lambda: str(folder)
+        try:
+            with stub_pydicom(headers):
+                yield
+        finally:
+            unitobrain.root = original
+
+    def test_reference_map_sorts_by_position_not_by_file_name(self):
+        """The fix itself, which a reviewer found untested: at_slice was, this was not.
+
+        The files are named in increasing order but hold decreasing positions, which is the
+        arrangement that made the volume's slice index point at the wrong reference slice.
+        """
+        with self.on_disk([30.0, 20.0, 10.0]):
+            series = unitobrain.reference_map("MOL-001", "NLR_TTP")
+        self.assertEqual(series.slice_locations, [10.0, 20.0, 30.0])
+        # Each image carries its own position as its pixel value in this stub's world, so
+        # ordering can be checked on the images and not only on the list.
+        self.assertEqual(series.case, "MOL-001")
+        self.assertEqual(len(series), 3)
+        self.assertEqual(series.at_slice(0, 10.0).shape, (2, 2))
+
+    def test_two_reference_slices_at_the_same_position_are_refused(self):
+        with self.on_disk([10.0, 10.0]):
+            with self.assertRaises(ValueError) as caught:
+                unitobrain.reference_map("MOL-001", "NLR_TTP")
+        self.assertIn("share a slice location", str(caught.exception))
+
+    def test_an_absent_reference_series_is_refused(self):
+        with self.on_disk([]):
+            with self.assertRaises(FileNotFoundError):
+                unitobrain.reference_map("MOL-001", "NLR_TTP")
+
+
+class StandardErrorOfADifference(unittest.TestCase):
+    """Requirement 11's precision formula, as a function over arrays.
+
+    Outside ClinicalEndToEnd on purpose. These tests need nothing from ctp_core, and a reviewer
+    found that keeping them in a class skipped when ctp_core is absent left the formula -- the
+    finite-population correction included -- with no running test in the cross-check snapshot.
+    """
+
+    def test_the_draw_being_without_replacement_lowers_the_standard_error(self):
+        """The finite-population correction, which a reviewer found missing.
+
+        Drawing 500 of 35,000 voxels without replacement gives a factor of 0.986 -- under one
+        percent on the standard error. It matters because this quantity is subtracted from the
+        disagreement with the reference maps, and subtracting an inflated variance would erase
+        genuine disagreement.
+        """
+        per_side = {"left": np.array([1.0, 2.0, 3.0, 4.0]),
+                    "right": np.array([2.0, 4.0, 6.0, 8.0])}
+        # The uncorrected value, written as a closed form rather than approximated with a huge
+        # population: var(1,2,3,4) = 5/3 and var(2,4,6,8) = 20/3, each over n = 4.
+        uncorrected = math.sqrt((5 / 3) / 4 + (20 / 3) / 4)
+        finite = run_clinical.standard_error_of_difference(per_side, {"left": 8, "right": 8})
+        self.assertLess(finite, uncorrected)
+        # Drawing half of each population halves each variance, so the standard error falls by
+        # exactly sqrt(2).
+        self.assertAlmostEqual(finite, uncorrected / math.sqrt(2), places=12)
+
+    def test_both_sides_contribute_to_the_difference(self):
+        """Taking one mean's standard error for a difference of two understates it.
+
+        Written with the finite-population factor in it, so the comparison is exact rather
+        than approximate: two identical sides of n = 4 drawn from N = 100.
+        """
+        same = {"left": np.array([1.0, 2.0, 3.0, 4.0]),
+                "right": np.array([1.0, 2.0, 3.0, 4.0])}
+        one_side = math.sqrt((5 / 3) / 4 * (1 - 4 / 100))
+        both = run_clinical.standard_error_of_difference(same, {"left": 100, "right": 100})
+        self.assertAlmostEqual(both, one_side * math.sqrt(2), places=12)
+
+    def test_drawing_the_whole_population_leaves_no_sampling_error(self):
+        per_side = {"left": np.array([1.0, 2.0, 3.0]), "right": np.array([4.0, 5.0, 9.0])}
+        self.assertEqual(
+            run_clinical.standard_error_of_difference(per_side, {"left": 3, "right": 3}), 0.0)
+
+    def test_a_population_smaller_than_the_sample_cannot_make_it_negative(self):
+        # Should not arise, but a negative variance would surface as a NaN far downstream.
+        per_side = {"left": np.array([1.0, 2.0, 3.0]), "right": np.array([4.0, 5.0, 9.0])}
+        value = run_clinical.standard_error_of_difference(per_side, {"left": 2, "right": 2})
+        self.assertEqual(value, 0.0)
+
+    def test_a_hemisphere_with_too_few_admitted_values_is_refused(self):
+        with self.assertRaises(ValueError):
+            run_clinical.standard_error_of_difference(
+                {"left": np.array([1.0]), "right": np.array([1.0, 2.0])},
+                {"left": 10, "right": 10})
 
 
 def ctp_core_available() -> bool:
@@ -868,35 +1014,98 @@ class ClinicalEndToEnd(unittest.TestCase):
                                    msg=f"{record['case']} {record['series']} "
                                        f"{record['method']}")
 
-    def test_the_draw_being_without_replacement_lowers_the_standard_error(self):
-        """The finite-population correction, which a reviewer found missing.
 
-        Drawing 500 of 35,000 voxels without replacement gives a factor of 0.986 -- under one
-        percent on the standard error. It matters because this quantity is subtracted from the
-        disagreement with the reference maps, and subtracting an inflated variance would erase
-        genuine disagreement.
+@unittest.skipUnless(ctp_core_available(),
+                     "ctp_core is not importable; these drivers cannot be exercised")
+class SyntheticAndPropagationEndToEnd(unittest.TestCase):
+    """run_synthetic.main() and run_propagation.main(), on grids small enough to run here.
+
+    A reviewer pointed out that both were tested only through their helpers: if main() stopped
+    calling ``arrival_time`` or skipped the straddle abort, the published results would change
+    and nothing would go red. The constants are patched down so the real code paths run in
+    seconds rather than minutes.
+    """
+
+    @contextlib.contextmanager
+    def small(self, module, **constants):
+        folder = pathlib.Path(tempfile.mkdtemp())
+        originals = {name: getattr(module, name) for name in constants}
+        original_results = module.RESULTS
+        for name, value in constants.items():
+            setattr(module, name, value)
+        module.RESULTS = str(folder)
+        try:
+            yield folder
+        finally:
+            for name, value in originals.items():
+                setattr(module, name, value)
+            module.RESULTS = original_results
+
+    def run_main(self, module):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = module.main()
+        return code, out.getvalue()
+
+    def test_the_synthetic_arm_runs_and_writes_what_it_measured(self):
+        with self.small(run_synthetic, DT_LEVELS=[0.5, 2.81], SNR_LEVELS=[20.0],
+                        N_REPEATS=12) as folder:
+            code, printed = self.run_main(run_synthetic)
+        self.assertEqual(code, 0, printed)
+        records = json.loads((folder / "synthetic_f1_f4.json").read_text(encoding="utf-8"))
+        self.assertEqual({r["dt"] for r in records}, {0.5, 2.81})
+        self.assertEqual({r["method"] for r in records}, {"sampled", "fitted"})
+        for record in records:
+            self.assertEqual(record["n_attempted"], 12)
+            self.assertAlmostEqual(record["quantisation_floor"],
+                                   record["dt"] / math.sqrt(12), places=12)
+            self.assertEqual(record["seed"], run_synthetic.SEED)
+
+    def test_the_synthetic_arm_jitters_arrival_rather_than_landing_on_the_grid(self):
+        """If main() stopped jittering, the sampled path would be unbiased by construction.
+
+        With the arrival fixed, the argmax of the sampled curve lands on the same instant every
+        time and its standard deviation collapses towards zero. Here it must not.
         """
-        per_side = {"left": np.array([1.0, 2.0, 3.0, 4.0]),
-                    "right": np.array([2.0, 4.0, 6.0, 8.0])}
-        # The uncorrected value, written as a closed form rather than approximated with a huge
-        # population: var(1,2,3,4) = 5/3 and var(2,4,6,8) = 20/3, each over n = 4.
-        uncorrected = math.sqrt((5 / 3) / 4 + (20 / 3) / 4)
-        finite = run_clinical.standard_error_of_difference(per_side, {"left": 8, "right": 8})
-        self.assertLess(finite, uncorrected)
-        # Drawing half of each population halves each variance, so the standard error falls by
-        # exactly sqrt(2).
-        self.assertAlmostEqual(finite, uncorrected / math.sqrt(2), places=12)
+        with self.small(run_synthetic, DT_LEVELS=[2.81], SNR_LEVELS=[40.0],
+                        N_REPEATS=40) as folder:
+            code, printed = self.run_main(run_synthetic)
+        self.assertEqual(code, 0, printed)
+        records = json.loads((folder / "synthetic_f1_f4.json").read_text(encoding="utf-8"))
+        sampled = next(r for r in records if r["method"] == "sampled")
+        # Within a factor of two of dt/sqrt(12); a fixed arrival gives nearly zero.
+        self.assertGreater(sampled["sd"], 0.5 * sampled["quantisation_floor"])
 
-    def test_drawing_the_whole_population_leaves_no_sampling_error(self):
-        per_side = {"left": np.array([1.0, 2.0, 3.0]), "right": np.array([4.0, 5.0, 9.0])}
-        self.assertEqual(
-            run_clinical.standard_error_of_difference(per_side, {"left": 3, "right": 3}), 0.0)
+    def test_the_propagation_arm_runs_and_locates_both_ceilings(self):
+        with self.small(run_propagation, SIZE=6, RATIOS=[1.0, 2.0, 3.0, 8.0]) as folder:
+            code, printed = self.run_main(run_propagation)
+        self.assertEqual(code, 0, printed)
+        written = json.loads((folder / "aif_propagation.json").read_text(encoding="utf-8"))
+        self.assertEqual([p["aif_area_ratio"] for p in written["points"]],
+                         [1.0, 2.0, 3.0, 8.0])
+        for name in run_propagation.MAPS:
+            self.assertIsNotNone(written["first_clipped_ratio"][name],
+                                 f"{name} never reached its ceiling on this grid")
+        self.assertIn("reaches its ceiling", printed)
 
-    def test_a_hemisphere_with_too_few_admitted_values_is_refused(self):
-        with self.assertRaises(ValueError):
-            run_clinical.standard_error_of_difference(
-                {"left": np.array([1.0]), "right": np.array([1.0, 2.0])},
-                {"left": 10, "right": 10})
+    def test_the_propagation_arm_refuses_a_grid_that_does_not_straddle(self):
+        """The abort, exercised through main() rather than through its helper."""
+        with self.small(run_propagation, SIZE=6, RATIOS=[1.0, 1.1]) as folder:
+            code, printed = self.run_main(run_propagation)
+        self.assertEqual(code, 1)
+        self.assertIn("ABORT", printed)
+        self.assertFalse((folder / "aif_propagation.json").exists())
+
+    def test_cbv_inflation_tracks_the_arterial_error_below_the_ceiling(self):
+        """The result the propagation figure rests on, measured by the driver itself."""
+        with self.small(run_propagation, SIZE=6, RATIOS=[1.0, 2.0, 8.0]) as folder:
+            code, printed = self.run_main(run_propagation)
+        self.assertEqual(code, 0, printed)
+        written = json.loads((folder / "aif_propagation.json").read_text(encoding="utf-8"))
+        for point in written["points"]:
+            if not point["cbv_clipped"]:
+                self.assertAlmostEqual(point["cbv_inflation"], point["aif_area_ratio"],
+                                       places=6)
 
 
 class ScreenEndToEnd(unittest.TestCase):
@@ -919,6 +1128,7 @@ class ScreenEndToEnd(unittest.TestCase):
         """
         folder = pathlib.Path(tempfile.mkdtemp())
         names = sorted(list(usable) + list(empty))
+        headers = {}
         for case in names:
             maps = folder / (case + unitobrain.MAPS) / "NLR_TTP"
             maps.mkdir(parents=True)
@@ -930,9 +1140,13 @@ class ScreenEndToEnd(unittest.TestCase):
                 series = folder / (case + unitobrain.FILTERED)
                 series.mkdir(parents=True)
                 for n in range(n_times * n_slices):
-                    (series / f"{n:04d}.dcm").write_bytes(b"")
+                    path = series / f"{n:04d}.dcm"
+                    path.write_bytes(b"")
+                    # One file per (acquisition, position), as the dataset has.
+                    headers[path] = (1 + n // n_slices, float(n % n_slices))
                 (folder / (case + unitobrain.MAPS + ".txt")).write_text(
-                    " ".join(str(2.81 * i) for i in range(n_times)) + "\n0 0 0 0\n",
+                    " ".join(str(2.81 * i) for i in range(n_times)) + "\n"
+                    + " ".join("0" for _ in range(n_times)) + "\n",
                     encoding="utf-8")
 
         def reference_map(case, series):
@@ -952,7 +1166,8 @@ class ScreenEndToEnd(unittest.TestCase):
         previous_expected = run_screen.EXPECTED_CASES
         run_screen.EXPECTED_CASES = len(names)
         try:
-            yield folder
+            with stub_pydicom(headers):
+                yield folder
         finally:
             for name, value in originals.items():
                 setattr(unitobrain, name, value)
@@ -1036,32 +1251,79 @@ class ScreenEndToEnd(unittest.TestCase):
         self.assertIn("could not be derived", printed)
         self.assertFalse((folder / "results" / "figure_case.json").exists())
 
-    def test_each_way_of_failing_to_derive_the_count_is_named(self):
+    @contextlib.contextmanager
+    def acquisition(self, pairs, *, times=None):
+        """A case whose acquisition folder holds exactly the given (number, location) pairs."""
         folder = pathlib.Path(tempfile.mkdtemp())
+        series = folder / ("MOL-001" + unitobrain.FILTERED)
+        series.mkdir(parents=True)
+        headers = {}
+        for n, pair in enumerate(pairs):
+            path = series / f"{n:04d}.dcm"
+            path.write_bytes(b"")
+            headers[path] = pair
+        if times is not None:
+            (folder / ("MOL-001" + unitobrain.MAPS + ".txt")).write_text(
+                " ".join(str(t) for t in times) + "\n"
+                + " ".join("0" for _ in times) + "\n", encoding="utf-8")
         original = unitobrain.root
         unitobrain.root = lambda: str(folder)
         try:
-            out = io.StringIO()
-            with contextlib.redirect_stdout(out):
-                self.assertIsNone(run_screen.expected_slices("MOL-001"))
-            self.assertIn("no acquisition files", out.getvalue())
-
-            series = folder / ("MOL-001" + unitobrain.FILTERED)
-            series.mkdir(parents=True)
-            (series / "0000.dcm").write_bytes(b"")
-            out = io.StringIO()
-            with contextlib.redirect_stdout(out):
-                self.assertIsNone(run_screen.expected_slices("MOL-001"))
-            self.assertIn("number of acquisitions is unknown", out.getvalue())
-
-            (folder / ("MOL-001" + unitobrain.MAPS + ".txt")).write_text(
-                "0 1 2\n0 0 0\n", encoding="utf-8")
-            out = io.StringIO()
-            with contextlib.redirect_stdout(out):
-                self.assertIsNone(run_screen.expected_slices("MOL-001"))
-            self.assertIn("do not divide", out.getvalue())
+            with stub_pydicom(headers):
+                yield
         finally:
             unitobrain.root = original
+
+    def why(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            value = run_screen.expected_slices("MOL-001")
+        return value, out.getvalue()
+
+    def test_each_way_of_failing_to_derive_the_count_is_named(self):
+        """"Could not be established" is not a diagnosis, so each cause says which it is."""
+        with self.acquisition([]):
+            value, printed = self.why()
+            self.assertIsNone(value)
+            self.assertIn("no acquisition files", printed)
+
+        # Two files claiming the same acquisition and position: one is a duplicate.
+        with self.acquisition([(1, 0.0), (1, 0.0)], times=[0.0]):
+            value, printed = self.why()
+            self.assertIsNone(value)
+            self.assertIn("duplicates", printed)
+
+        # Three files cannot fill a 2 x 2 grid: the acquisition itself is incomplete.
+        with self.acquisition([(1, 0.0), (1, 1.0), (2, 0.0)], times=[0.0, 2.81]):
+            value, printed = self.why()
+            self.assertIsNone(value)
+            self.assertIn("acquisition itself is incomplete", printed)
+
+        # A complete grid, but no shipped time vector to check it against.
+        with self.acquisition([(1, 0.0), (1, 1.0), (2, 0.0), (2, 1.0)]):
+            value, printed = self.why()
+            self.assertIsNone(value)
+            self.assertIn("cannot be checked", printed)
+
+        # A complete grid of two acquisitions against a vector of three times.
+        with self.acquisition([(1, 0.0), (1, 1.0), (2, 0.0), (2, 1.0)],
+                              times=[0.0, 2.81, 5.62]):
+            value, printed = self.why()
+            self.assertIsNone(value)
+            self.assertIn("against 3 times", printed)
+
+    def test_a_complete_acquisition_gives_its_slice_count(self):
+        """The count is the number of distinct positions, not files divided by time points.
+
+        A reviewer found the division wrong: a partly extracted folder whose file count happens
+        to divide evenly gives a plausible wrong answer, and the gate then passes. Here three
+        acquisitions of two slices give 2, and so would any partial folder -- but a partial
+        folder no longer gets this far.
+        """
+        with self.acquisition([(1, 0.0), (1, 1.0), (2, 0.0), (2, 1.0), (3, 0.0), (3, 1.0)],
+                              times=[0.0, 2.81, 5.62]):
+            value, printed = self.why()
+            self.assertEqual(value, 2, printed)
 
     def test_a_missing_case_directory_aborts(self):
         with self.dataset({"MOL-001": 6.0, "MOL-002": 1.0}) as folder:

@@ -433,14 +433,88 @@ MUTATIONS = [
         "test_the_draw_being_without_replacement_lowers_the_standard_error",
     ),
     (
-        "say nothing about why the expected slice count could not be derived",
+        "say nothing about why the expected slice count could not be established",
         "run_screen.py",
         '        print(f"{case}: WARNING - no acquisition files under "\n'
         '              f"{case + unitobrain.FILTERED}; the expected slice count cannot be '
-        'derived")\n'
+        'established")\n'
         "        return None",
         "        return None",
         "test_each_way_of_failing_to_derive_the_count_is_named",
+    ),
+    # Round six.
+    (
+        "count the expected slices by division, so a partly extracted folder passes",
+        "run_screen.py",
+        "    pairs = set()",
+        '    return len(files) // max(1, len(open(text, encoding="utf-8")\n'
+        "                                   .readline().split())) if os.path.isfile(text) "
+        "else None\n    pairs = set()",
+        "test_a_partly_extracted_reference_series_aborts",
+    ),
+    (
+        "accept an acquisition folder that does not fill its own grid",
+        "run_screen.py",
+        "    if len(acquisitions) * len(locations) != len(files):",
+        "    if False:",
+        "test_each_way_of_failing_to_derive_the_count_is_named",
+    ),
+    (
+        "accept duplicate acquisition files in the screen",
+        "run_screen.py",
+        "    if len(pairs) != len(files):",
+        "    if False:",
+        "test_each_way_of_failing_to_derive_the_count_is_named",
+    ),
+    (
+        "really fail open when the expected slice count cannot be established",
+        "run_screen.py",
+        '            print(f"{case}: EXCLUDED - the expected number of reference slices could '
+        'not be "\n                  "derived (see the warning above)")\n            continue',
+        "            expected = n_files",
+        "test_an_underivable_slice_count_aborts_rather_than_passing",
+    ),
+    (
+        "accept a time vector that is not strictly increasing",
+        "unitobrain.py",
+        "    if not np.all(np.isfinite(times)) or not np.all(np.diff(times) > 0):",
+        "    if False:",
+        "test_a_time_vector_that_is_not_increasing_is_refused",
+    ),
+    (
+        "order the reference maps by file name again",
+        "unitobrain.py",
+        "    found.sort(key=lambda pair: pair[0])",
+        "    pass",
+        "test_reference_map_sorts_by_position_not_by_file_name",
+    ),
+    (
+        "accept two reference slices at the same position",
+        "unitobrain.py",
+        "    if len(set(locations)) != len(locations):",
+        "    if False:",
+        "test_two_reference_slices_at_the_same_position_are_refused",
+    ),
+    (
+        "stop jittering the arrival inside the synthetic driver's own loop",
+        "run_synthetic.py",
+        "                arrival = arrival_time(rng, dt)",
+        "                arrival = NOMINAL_ARRIVAL",
+        "test_the_synthetic_arm_jitters_arrival_rather_than_landing_on_the_grid",
+    ),
+    (
+        "skip the straddle abort inside the propagation driver's own main",
+        "run_propagation.py",
+        "        if not straddles_the_ceiling(records, name):",
+        "        if False:",
+        "test_the_propagation_arm_refuses_a_grid_that_does_not_straddle",
+    ),
+    (
+        "take the standard error of one mean, where the formula now lives",
+        "run_clinical.py",
+        '    for side in ("left", "right"):\n        values = per_side[side]',
+        '    for side in ("left",):\n        values = per_side[side]',
+        "test_both_sides_contribute_to_the_difference",
     ),
 ]
 

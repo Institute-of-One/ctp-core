@@ -301,6 +301,41 @@ count happens to divide by the number of time points still yields a wrong expect
 Catching that would mean reading DICOM headers in the screen, which is what deriving the count
 from file names was chosen to avoid.
 
+**2026-10-20 (sixth and last round) — the first clean validation, and seven more findings.**
+This was the round where the framework finally reported `inputs_unchanged: true`; the two before
+it were refused because the manifest was being edited while they ran. The verdict is still FAIL,
+for the one reason that will not change here: the framework executes tests under `python -I`,
+which cannot see NumPy. Nothing in this round changed a measured value — the figure case, the
+ranking, and every result file are byte-identical afterwards.
+
+13. **The expected number of reference slices is read, not inferred.** The completeness gate had
+    been dividing the acquisition folder's file count by the number of time points, which gives
+    a plausible wrong answer for a partly extracted folder whose count happens to divide evenly.
+    It now reads the DICOM headers — one per file, no pixel data, about three seconds a case —
+    and takes the count as the number of **distinct slice locations**, requiring the
+    (acquisition, location) pairs to be distinct and to fill the grid. That also catches a
+    partly extracted *acquisition* folder, which the division could not. The screen now takes
+    88 seconds instead of 40.
+
+14. **The shipped time vector must be strictly increasing.** Its length was checked and its
+    order was not. Out of order it would have given a meaningless or negative sampling interval
+    and a window that is not the acquisition, with nothing downstream noticing.
+
+The other five were coverage, and the pattern in them is worth keeping: *a fix is not covered by
+a test of the function it lives in.* The reference maps' sort by slice location — the actual fix
+for the file-name ordering defect — had no test, only its consumer did. Three tests of the
+standard-error formula sat inside a class that is skipped wherever `ctp_core` is absent, although
+they are pure functions that need nothing from it. Nothing called `run_synthetic.main` or
+`run_propagation.main`, so a `main` that stopped jittering the bolus arrival or skipped the
+saturation abort would have changed the published results with every test green. One injection
+was mislabelled and proved nothing about the defect it named. And a class docstring still
+claimed to check a precision claim that amendment 10 withdrew.
+
+**This is where the cross-check stops for this module.** Six rounds, 31 defects, and the measured
+values have not moved since the third. What the later rounds found is still real, but it has
+shifted from the numbers to the robustness of code paths this dataset does not exercise, and the
+next thing the paper needs is figures and text rather than another round.
+
 ---
 
 ## 8. Where the code is, and which file holds which number
@@ -318,6 +353,7 @@ version control; they are in the repository now.
 | `run_synthetic.py` | `synthetic_f1_f4.json` | F1 × F4 against analytic truth |
 | `run_clinical.py` | `f1_f2_clinical.json` | F1 × F2 on the clinical arm |
 | `run_reference.py` | `clinical_vs_reference.json` | F1 against the dataset's own reference maps |
+| `run_figure_maps.py` | `mol001_maps.npz` | the maps behind the clinical figure |
 
 `unitobrain.py` is the only module that knows the dataset's layout, `ctp_measure.py` holds the
 measurement logic, tested in `test_ctp_measure.py`, and `driver_io.py` holds the one line of

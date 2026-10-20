@@ -157,6 +157,15 @@ def load(case: str, *, filtered: bool = True) -> Acquisition:
             f"{case}: {volume.shape[0]} acquisitions but {times.size} times and {aif.size} "
             "arterial samples"
         )
+    # The time axis is used for the acquisition window, for the mean sampling interval and as
+    # the x-axis of every fit. A reviewer pointed out that its *order* was never checked: a
+    # non-increasing vector would give a negative or meaningless interval and a window that is
+    # not the acquisition, and nothing downstream would notice.
+    if not np.all(np.isfinite(times)) or not np.all(np.diff(times) > 0):
+        raise ValueError(
+            f"{case}: the shipped time vector is not strictly increasing and finite: "
+            f"{times[:5]}..."
+        )
     return Acquisition(case=case, volume=volume, times=times, shipped_aif=aif,
                        slice_locations=locations, acquisitions=acquisitions)
 

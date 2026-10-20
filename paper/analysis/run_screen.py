@@ -44,30 +44,53 @@ EXPECTED_CASES = 15
 def expected_slices(case: str) -> int | None:
     """How many slices this case's reference series should hold, or ``None`` if unknowable.
 
-    The acquisition folder holds one file per slice per acquisition, and the time vector beside
-    the maps gives the number of acquisitions, so the slice count follows by division without
-    opening an image. ``None`` means it could not be derived, and the caller treats that as an
-    exclusion: a case whose own files do not agree on how many slices it has is not a case to
-    rank. Each way of failing is named, because "could not be derived" is not a diagnosis.
+    Read from the acquisition's own DICOM headers -- one header per file, no pixel data, about
+    three seconds for a case -- as the number of distinct slice locations. ``None`` means it
+    could not be established, and the caller treats that as an exclusion: a case whose own files
+    do not agree on how many slices it has is not a case to rank. Each way of failing is named,
+    because "could not be derived" is not a diagnosis.
+
+    An earlier version divided the file count by the number of time points instead. A reviewer
+    pointed out what that misses: a partly extracted acquisition folder whose file count happens
+    to divide evenly yields a plausible wrong answer, and the gate then passes. Counting the
+    distinct (acquisition, location) pairs and requiring them to fill the grid catches it, and
+    catches a partly extracted acquisition folder as well.
     """
+    import pydicom
+
     base = unitobrain.root()
-    files = len(glob.glob(os.path.join(base, case + unitobrain.FILTERED, "*.dcm")))
-    text = os.path.join(base, case + unitobrain.MAPS + ".txt")
+    files = sorted(glob.glob(os.path.join(base, case + unitobrain.FILTERED, "*.dcm")))
     if not files:
         print(f"{case}: WARNING - no acquisition files under "
-              f"{case + unitobrain.FILTERED}; the expected slice count cannot be derived")
+              f"{case + unitobrain.FILTERED}; the expected slice count cannot be established")
         return None
+    pairs = set()
+    for path in files:
+        data = pydicom.dcmread(path, stop_before_pixels=True)
+        pairs.add((int(data.AcquisitionNumber), float(data.SliceLocation)))
+    if len(pairs) != len(files):
+        print(f"{case}: WARNING - {len(files)} acquisition files give only {len(pairs)} "
+              "distinct acquisition and position pairs, so some of them are duplicates")
+        return None
+    acquisitions = {a for a, _ in pairs}
+    locations = {z for _, z in pairs}
+    if len(acquisitions) * len(locations) != len(files):
+        print(f"{case}: WARNING - {len(acquisitions)} acquisitions and {len(locations)} "
+              f"positions do not fill {len(files)} files, so the acquisition itself is "
+              "incomplete")
+        return None
+    text = os.path.join(base, case + unitobrain.MAPS + ".txt")
     if not os.path.isfile(text):
         print(f"{case}: WARNING - no {case + unitobrain.MAPS}.txt, so the number of "
-              "acquisitions is unknown and the expected slice count cannot be derived")
+              "acquisitions cannot be checked")
         return None
     with open(text, encoding="utf-8") as handle:
         n_times = len(handle.readline().split())
-    if not n_times or files % n_times:
-        print(f"{case}: WARNING - {files} acquisition files do not divide by {n_times} "
-              "time points; the expected slice count cannot be derived")
+    if n_times != len(acquisitions):
+        print(f"{case}: WARNING - {len(acquisitions)} acquisitions on disk against {n_times} "
+              "times in the shipped vector")
         return None
-    return files // n_times
+    return len(locations)
 
 
 def slice_asymmetry(ttp: np.ndarray) -> float | None:

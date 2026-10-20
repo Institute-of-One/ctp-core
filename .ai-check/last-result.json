@@ -1,10 +1,10 @@
 {
   "name": "ctp-core-iorn-001-measurement",
-  "checked_at": "2026-10-19T11:07:42.045139+00:00",
-  "summary_path": "C:\\Users\\YamamotoShuji\\Documents\\Codex\\SharedTools\\AI-Check\\runs\\20261019T110455Z-533049c8\\summary.json",
-  "snapshot_sha256": "f03bb8a78ab3d3559da124472fe058a42c2889bd6d6772162bb6319bf79207d9",
-  "verdict": "BLOCKED",
-  "verdict_reason": "BLOCKED, and the gate was right: files in the manifest were edited while the run was validating, because the findings were being acted on as they arrived. That is a procedural failure on my part, not a defect in the project or the framework. Both independent reviews of that snapshot completed and both returned fail; their findings are listed below and have been addressed. No run of the expanded snapshot has returned PASS, and this file does not claim one.",
+  "checked_at": "2026-10-20T01:54:41.734715+00:00",
+  "summary_path": "C:\\Users\\YamamotoShuji\\Documents\\Codex\\SharedTools\\AI-Check\\runs\\20261020T015234Z-0976243c\\summary.json",
+  "snapshot_sha256": "c9391ce74a4156521aaf70f3d76ba36d52e203e93f1771d22d8717c897a59d3b",
+  "verdict": "FAIL",
+  "verdict_reason": "FAIL because the framework could not execute the tests: it runs them under python -I, which by design cannot see the NumPy in the user site-packages. This run is the first of the expanded snapshot to validate cleanly (inputs_unchanged: true); the two before it were refused because the manifest was being edited while they ran, which the gate was right to catch. Both independent reviews completed and both returned fail; their findings are listed below and have been addressed. No run has returned PASS, and this file does not claim one, and cannot while the framework runs tests isolated from the NumPy this project needs.",
   "reviews": {
     "codex": "fail",
     "claude": "fail"
@@ -12,34 +12,35 @@
   "inputs": {
     "paper/analysis/ctp_measure.py": "418591a6d174dfc9b1ab9f2266cb855b8881b32375be439fcbb6aee7c411923c",
     "paper/analysis/driver_io.py": "11c33bb48cd2465b181cb83a085a56d9b71dabdfaeb38d0ed833917867acb234",
-    "paper/analysis/prove_driver_gates.py": "23711762fda961dbcb3ca40f9a4ee992c723ccdd098002b8c4b147a82a4d7b83",
+    "paper/analysis/prove_driver_gates.py": "c273e44e98e34684425c01f186e44c5ba5ef90efff45820d90060875f85aabaa",
     "paper/analysis/run_aif.py": "37ceff54800deea48798065dfafd70d03087b52516e5e07d9fd0684b0511ac6f",
     "paper/analysis/run_clinical.py": "3c23dab3a616ba854e14169c8ba9c7206327b51bcc49858647602f8f15798282",
+    "paper/analysis/run_figure_maps.py": "6eee3fb4702a13508b536b035c8314179a1e66d7f2fec96f9c4d98ba8a1cf3c1",
     "paper/analysis/run_propagation.py": "690ef2c4f96968af3d89c253e0f4e304f684268940b78822c970797afda8492c",
     "paper/analysis/run_reference.py": "b0ef6be56a130893703192d769f3d286bab837ba67eab149d98e858fc2552d8c",
-    "paper/analysis/run_screen.py": "c4a6f95124681ffe506bde5c942f9fb8f7014fad275fa815c30674ff5892491a",
+    "paper/analysis/run_screen.py": "1b724184aa4c0c308eab0b2ab5748476d96090dc7a991496fecf58f847a9dd66",
     "paper/analysis/run_synthetic.py": "fc16fd653ec01e0c898bec4ddd7c9467ad4b35aa4ae683ed73af127e49e10336",
     "paper/analysis/test_ctp_measure.py": "13611d758da9be4f9db621239f700fe1868eadf1aea94bb9aceb0d60bd05c6c2",
-    "paper/analysis/test_drivers.py": "38750267b993e66bb4a142dfeba717f996e22b13d11114f0fb5439449a73ae31",
-    "paper/analysis/unitobrain.py": "1fcc7e21a402ecb1b446db51e34c8a3169f1984cf926fe2388355369a445c4ee"
+    "paper/analysis/test_drivers.py": "6d6ce9567597f288f6f71cf45bda8d2a6f9582eddd3a1d470b631882565bd1e6",
+    "paper/analysis/unitobrain.py": "b0098b5ddae3b19f3d60ede88e791e4af5d6b5eb2d97f85b83079bf90d220ea9"
   },
   "local_evidence": {
     "note": "Run after every fix, on the file contents whose digests are recorded above. These are local runs, not the framework's verdict.",
     "measurement_suite": {
       "command": "python -m unittest discover -s . (from paper/analysis)",
-      "result": "Ran 126 tests in 6.013s",
+      "result": "Ran 139 tests in 6.905s",
       "passed": true
     },
     "package_suite": {
       "command": "python -m pytest tests -q",
-      "result": "46 passed in 1.94s",
+      "result": "46 passed in 1.99s",
       "passed": true
     },
     "injection_proof": {
       "command": "python paper/analysis/prove_driver_gates.py",
       "result": [
-        "55 of 55 injected defects were caught by the test that claims to catch them",
-        "of those, 51 went red on that test's own assertion and 4 went red because the defect made the code raise"
+        "65 of 65 injected defects were caught by the test that claims to catch them",
+        "of those, 60 went red on that test's own assertion and 5 went red because the defect made the code raise"
       ],
       "passed": true
     }
@@ -61,7 +62,8 @@
     "Round 3: seven more. Either map clipping was reported as both saturating; acquisition numbers were discarded; a non-finite slice position defeated the new position check; the reference gate compared the result against its own input; the strata dropped a case at the boundary; the ctp_measure docstring claimed the drivers hold no arithmetic, which was false; and every driver rebound sys.stdout so no entry point could be called from a test.",
     "Round 4: three defects and the sampling rule's justification. The precision claim was wrong in three independent ways, the real standard error of a hemispheric difference is 0.23 to 0.79 s, and part of the agreement with the reference maps was our own sampling noise -- at 2.81 s the fitted path's whole RMSE. The claim that argmax is three times worse was withdrawn and replaced.",
     "Round 5: the finite-population correction was missing (0.77 % at most, no published number changed); the new completeness gate failed open; a test still asserted a withdrawn claim; and a plumbing run could still destroy the published 15-case result.",
-    "Across all five rounds the measured values did not move: every driver was re-run after every change, and the figure case, the arterial area ratios, the quantisation floors and all 60 clinical records are what they were. What changed is how one result is stated, and what the code refuses."
+    "Round 6, the first to validate cleanly: seven more. The completeness gate still accepted a partly extracted acquisition folder whose file count divided evenly, so the expected slice count is now read from the DICOM headers as the number of distinct positions; the shipped time vector's order was never checked; and five coverage gaps, all of the same shape -- a fix tested only through its consumer, pure-function tests trapped inside a class that gets skipped, two driver main() functions nothing called, one mislabelled injection, and a docstring still claiming a withdrawn check.",
+    "Across all six rounds the measured values did not move: every driver was re-run after every change, and the figure case, the arterial area ratios, the quantisation floors and all 60 clinical records are what they were. What changed is how one result is stated, and what the code refuses."
   ],
   "one_review_claim_was_wrong": "A reviewer gave 2.0 as the positive area of [0, 2, -2, 0] over times [0, 1, 2, 3]. Recomputing by hand gives 1.5: a trapezoid of 1.0, then a triangle of 0.5 above the zero crossing at t = 1.5, then nothing. The implementation was right and the test's expectation was corrected instead. Agreement between the two reviewers was not treated as proof at any point.",
   "history": [
@@ -134,10 +136,25 @@
       "snapshot_sha256": "f03bb8a78ab3d3559da124472fe058a42c2889bd6d6772162bb6319bf79207d9",
       "summary_path": "C:\\Users\\YamamotoShuji\\Documents\\Codex\\SharedTools\\AI-Check\\runs\\20261019T110455Z-533049c8\\summary.json",
       "stage": "fourth round on the drivers"
+    },
+    {
+      "run": "20261020T015234Z-0976243c",
+      "finished": "2026-10-20T01:54:41.734715+00:00",
+      "verdict": "FAIL",
+      "reason": "Executable test failed, timed out, or has no confirmed passing tests",
+      "inputs_unchanged": true,
+      "reviews": {
+        "codex": "fail",
+        "claude": "fail"
+      },
+      "snapshot_sha256": "c9391ce74a4156521aaf70f3d76ba36d52e203e93f1771d22d8717c897a59d3b",
+      "summary_path": "C:\\Users\\YamamotoShuji\\Documents\\Codex\\SharedTools\\AI-Check\\runs\\20261020T015234Z-0976243c\\summary.json",
+      "stage": "fifth round on the drivers; the first to validate cleanly"
     }
   ],
   "open_items": [
-    "No run of the expanded snapshot has returned PASS. The two most recent were BLOCKED because the manifest was edited during validation; the one before returned FAIL on findings that have since been addressed. A clean run on an unchanging snapshot is outstanding.",
+    "No run of the expanded snapshot has returned PASS, and none can while the framework executes tests under python -I: NumPy lives in the user site-packages, which that mode ignores. The sixth round did validate cleanly (inputs_unchanged: true) and returned FAIL for exactly that reason, with both reviews completing and both returning fail on findings since addressed.",
+    "The findings of the sixth round were fixed after it ran, so the fixes themselves have not been reviewed. The cross-check stops here for this module by the author's decision: six rounds, 31 defects, and no measured value has moved since the third.",
     "The framework cannot execute this project's tests at all while NumPy lives only in the user site-packages, so its verdict can never be better than FAIL here without either installing NumPy where python -I can see it or amending the shared adapter.",
     "A partly extracted acquisition folder whose file count happens to divide by the number of time points still yields a wrong expected slice count in run_screen.",
     "On the fitted path the finite-population correction uses the admitted count, which is not a random subset of the drawn voxels, so the standard error is approximate there."
